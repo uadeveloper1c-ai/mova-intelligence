@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "417539155136",
+    "project_id": "mova-intelligence",
+    "storage_bucket": "mova-intelligence.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:417539155136:android:831608f9462244ce3bb925",
+        "android_client_info": {
+          "package_name": "com.example.mova_intelligence_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCqfPdK9j7FZYHZtjgmbCCCWwcn3iP7_Mk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
