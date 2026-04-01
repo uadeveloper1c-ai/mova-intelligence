@@ -18,30 +18,64 @@ class AuthProvider extends ChangeNotifier {
 
   UserModel? currentUser;
   bool isLoading = false;
+  bool _canApprovePayments = false;
   String? lastError;
 
   bool get isLoggedIn => currentUser != null;
 
-  /// Подтянуть пользователя по /me (используем для уточнения данных и orgs),
-  /// но НЕ ломаем логин, если здесь что-то пойдёт не так.
+  bool get canApprovePayments {
+    final u = currentUser;
+    if (u == null) return false;
+
+    // 1) Прямой серверный флаг из /me
+    if (_canApprovePayments) return true;
+
+    // 2) Если в UserModel есть поле canApprovePayments — используем его
+    try {
+      final v = (u as dynamic).canApprovePayments;
+      if (v is bool) return v;
+    } catch (_) {
+      // ignore
+    }
+
+    // 3) Fallback по ролям
+    final roles = u.roles.map((e) => e.toLowerCase().trim()).toList();
+    return roles.contains('approver') ||
+        roles.contains('approve_payments') ||
+        roles.contains('payments_approver') ||
+        roles.contains('утверждает') ||
+        roles.contains('затверджує');
+  }
+
+  String get approvalsTitle =>
+      canApprovePayments ? 'На погодженні' : 'Мої заявки';
+
+  bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+
+    final s = value.toString().trim().toLowerCase();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+
   Future<void> loadUser() async {
     try {
       final me = await _apiClient.getMe();
       debugPrint('AuthProvider.loadUser: /me = $me');
 
-      if (me == null) {
-        return;
-      }
+      if (me == null) return;
 
-      // Парсим пользователя
       final user = UserModel.fromJson(me);
       currentUser = user;
 
-      // UID користувача мобільного додатку з /me
+      // ✅ Прямой флаг с сервера
+      _canApprovePayments = _parseBool(me['canApprovePayments']);
+
       final String? userUid = me['uid']?.toString();
 
-      // orgs
       List<OrgAccess> orgs = [];
+      List<SubdivisionAccess> subdivisions = [];
       try {
         final orgsJson = me['orgs'] as List<dynamic>? ?? const [];
         orgs = orgsJson
@@ -55,13 +89,27 @@ class AuthProvider extends ChangeNotifier {
         debugPrint('AuthProvider.loadUser: error parsing orgs: $e');
       }
 
-      // Сесія для заявок
+      try {
+        final subdivisionsJson = me['subdivisions'] as List<dynamic>? ?? const [];
+        subdivisions = subdivisionsJson
+            .map(
+              (e) => SubdivisionAccess.fromJson(
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
+            .where((e) => e.uid.isNotEmpty)
+            .toList();
+      } catch (e) {
+        debugPrint('AuthProvider.loadUser: error parsing subdivisions: $e');
+      }
+
       final session = SessionData(
         token: _apiClient.accessToken ?? '',
         fullName: user.name,
-        canApprovePayments: user.canApprovePayments,
+        canApprovePayments: canApprovePayments,
         orgs: orgs,
-        userUid: userUid, // 🔹 ТУТ важное место
+        subdivisions: subdivisions,
+        userUid: userUid,
       );
       await SessionStore.saveSession(session);
 
@@ -71,9 +119,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Логин:
-  /// 1) /login — если ок → СРАЗУ считаем пользователя залогиненным
-  /// 2) в фоне дергаем /me, чтобы подтянуть роли, orgs и т.п.
   Future<bool> login(String login, String password) async {
     isLoading = true;
     lastError = null;
@@ -88,20 +133,18 @@ class AuthProvider extends ChangeNotifier {
         return false;
       }
 
-      // ===== КРИТИЧЕСКИЙ МОМЕНТ =====
-      // Считаем, что пользователь залогинен, даже если /me потом ляжет.
+      // Временный пользователь до /me
       currentUser = UserModel(
-        uid: login,          // временно используем логин
+        uid: login,
         name: login,
-        roles: const [],     // позже подтянем из /me
+        roles: const [],
       );
-      notifyListeners();     // чтобы GoRouter увидел loggedIn = true
+      _canApprovePayments = false;
+      notifyListeners();
 
-      // В фоне подтянем реальные данные и orgs
-      // (НЕ ждём, чтобы не ломать логин)
-      loadUser();
+      // Подтягиваем реальные данные
+      await loadUser();
 
-      // Регистрируем устройство для push (ошибка здесь логин не ломает)
       try {
         await _pushService.registerCurrentDevice();
       } catch (e) {
@@ -126,6 +169,9 @@ class AuthProvider extends ChangeNotifier {
     await SessionStore.clear();
 
     currentUser = null;
+    _canApprovePayments = false;
+    lastError = null;
+
     notifyListeners();
   }
 }

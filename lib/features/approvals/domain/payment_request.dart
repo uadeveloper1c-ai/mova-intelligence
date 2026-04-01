@@ -1,42 +1,138 @@
-// lib/features/approvals/domain/payment_request.dart
+class PaymentAttachment {
+  final String name;
+  final String url;
+
+  const PaymentAttachment({
+    required this.name,
+    required this.url,
+  });
+
+  factory PaymentAttachment.fromJson(Map<String, dynamic> json) {
+    return PaymentAttachment(
+      name: (json['name'] ?? '').toString(),
+      url: (json['url'] ?? '').toString(),
+    );
+  }
+}
+
+class PaymentRequest {
+  final String id;
+  final String number;
+  final DateTime date;
+  final String contractorName;
+  final double amount;
+  final String currency;
+  final String purpose;
+  final PaymentRequestStatus status;
+  final String? approverName;
+  final String? requesterName;
+  final bool urgent;
+  final PaymentForm paymentForm;
+  final PaymentAttachment? attachment;
+
+  const PaymentRequest({
+    required this.id,
+    required this.number,
+    required this.date,
+    required this.contractorName,
+    required this.amount,
+    required this.currency,
+    required this.purpose,
+    required this.status,
+    this.approverName,
+    this.requesterName,
+    this.urgent = false,
+    this.paymentForm = PaymentForm.unknown,
+    this.attachment,
+  });
+
+  factory PaymentRequest.fromJson(Map<String, dynamic> json) {
+    return PaymentRequest(
+      id: (json['id'] ?? '').toString(),
+      number: (json['number'] ?? '').toString(),
+      date: _parseDate(json['date']),
+      contractorName: (json['contractorName'] ?? '').toString(),
+      amount: _parseDouble(json['amount']),
+      currency: ((json['currency'] ?? 'UAH').toString()).toUpperCase(),
+      purpose: (json['purpose'] ?? '').toString(),
+      status: paymentStatusFromBackend((json['status'] ?? '').toString()),
+      approverName: json['approverName']?.toString(),
+      requesterName: json['requesterName']?.toString(),
+      urgent: _parseBool(json['urgent']),
+      paymentForm: paymentFormFromBackend(json['paymentForm']?.toString()),
+      attachment: json['attachment'] is Map
+          ? PaymentAttachment.fromJson(
+        Map<String, dynamic>.from(json['attachment'] as Map),
+      )
+          : null,
+    );
+  }
+
+  static DateTime _parseDate(dynamic value) {
+    if (value == null) return DateTime.now();
+
+    if (value is DateTime) return value;
+
+    final s = value.toString().trim();
+    if (s.isEmpty) return DateTime.now();
+
+    try {
+      return DateTime.parse(s).toLocal();
+    } catch (_) {
+      return DateTime.now();
+    }
+  }
+
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0;
+
+    if (value is num) return value.toDouble();
+
+    final s = value.toString().replaceAll(',', '.').trim();
+    return double.tryParse(s) ?? 0;
+  }
+
+  static bool _parseBool(dynamic value) {
+    if (value == null) return false;
+    if (value is bool) return value;
+
+    final s = value.toString().toLowerCase().trim();
+    return s == 'true' || s == '1' || s == 'yes';
+  }
+}
 
 enum PaymentRequestStatus {
-  draft,      // чернетка
-  pending,    // на погодженні
-  approved,   // погоджено
-  rejected,   // відхилено
-  topaid,     // до оплати (КОплате)
-  paid,       // оплачено
+  draft,
+  pending,
+  approvedByDepartmentHead,
+  approved,
+  rejected,
+  topaid,
+  paid,
+}
+
+enum PaymentForm {
+  cash,
+  cashless,
+  unknown,
 }
 
 PaymentRequestStatus paymentStatusFromBackend(String value) {
-  switch (value) {
+  switch (value.trim()) {
     case 'Draft':
-    case 'Черновик':
       return PaymentRequestStatus.draft;
-
     case 'Pending':
-    case 'НаСогласовании':
       return PaymentRequestStatus.pending;
-
+    case 'ApprovedByDepartmentHead':
+      return PaymentRequestStatus.approvedByDepartmentHead;
     case 'Approved':
-    case 'Согласовано':
       return PaymentRequestStatus.approved;
-
     case 'Rejected':
-    case 'Отклонено':
       return PaymentRequestStatus.rejected;
-
-  // до оплати
     case 'ToPaid':
-    case 'КОплате':
       return PaymentRequestStatus.topaid;
-
-  // уже оплачено
     case 'Paid':
-    case 'Оплачено':
       return PaymentRequestStatus.paid;
-
     default:
       return PaymentRequestStatus.pending;
   }
@@ -48,12 +144,14 @@ String paymentStatusToBackend(PaymentRequestStatus status) {
       return 'Draft';
     case PaymentRequestStatus.pending:
       return 'Pending';
+    case PaymentRequestStatus.approvedByDepartmentHead:
+      return 'ApprovedByDepartmentHead';
     case PaymentRequestStatus.approved:
       return 'Approved';
     case PaymentRequestStatus.rejected:
       return 'Rejected';
     case PaymentRequestStatus.topaid:
-      return 'ToPaid'; // или "КОплате", если на стороне 1С так принято
+      return 'ToPaid';
     case PaymentRequestStatus.paid:
       return 'Paid';
   }
@@ -65,6 +163,8 @@ String paymentStatusHuman(PaymentRequestStatus status) {
       return 'Чернетка';
     case PaymentRequestStatus.pending:
       return 'На погодженні';
+    case PaymentRequestStatus.approvedByDepartmentHead:
+      return 'Погоджено керівником';
     case PaymentRequestStatus.approved:
       return 'Погоджено';
     case PaymentRequestStatus.rejected:
@@ -76,83 +176,15 @@ String paymentStatusHuman(PaymentRequestStatus status) {
   }
 }
 
-/// Толерантний парсер дати з бекенду.
-/// Підтримує:
-///  - ISO (2025-12-09T00:00:00 / 2025-12-09)
-///  - dd.MM.yyyy (09.12.2025)
-DateTime _parseBackendDate(dynamic raw) {
-  if (raw is DateTime) return raw;
-
-  final s = (raw ?? '').toString().trim();
-  if (s.isEmpty) {
-    // якщо дати немає – просто зараз
-    return DateTime.now();
-  }
-
-  // 1) пробуємо стандартний ISO-парсер
-  try {
-    return DateTime.parse(s);
-  } catch (_) {
-    // ignore
-  }
-
-  // 2) пробуємо формат dd.MM.yyyy (можливо з часом після пробілу)
-  final partsDot = s.split('.');
-  if (partsDot.length == 3) {
-    final day = int.tryParse(partsDot[0]);
-    final month = int.tryParse(partsDot[1]);
-
-    // третя частина може бути "yyyy" або "yyyy HH:MM..."
-    final yearStr = partsDot[2].split(' ').first;
-    final year = int.tryParse(yearStr);
-
-    if (day != null && month != null && year != null) {
-      return DateTime(year, month, day);
-    }
-  }
-
-  // Якщо нічого не вийшло – не валимо UI, просто повертаємо now().
-  // При бажанні можна залогувати це окремо.
-  return DateTime.now();
-}
-
-class PaymentRequest {
-  final String id;            // внутрішній ID
-  final String number;        // номер заявки
-  final DateTime date;        // дата створення
-  final String requesterName; // хто просить
-  final String approverName;  // хто погоджує
-  final double amount;        // сума
-  final String currency;      // валюта
-  final String purpose;       // призначення платежу
-  final PaymentRequestStatus status;
-  final String contractorName;
-
-  PaymentRequest({
-    required this.id,
-    required this.number,
-    required this.date,
-    required this.requesterName,
-    required this.approverName,
-    required this.amount,
-    required this.currency,
-    required this.purpose,
-    required this.status,
-    this.contractorName = '',
-  });
-
-  factory PaymentRequest.fromJson(Map<String, dynamic> json) {
-    return PaymentRequest(
-      id: json['id'] as String,
-      number: json['number'] as String,
-      date: _parseBackendDate(json['date']),
-      requesterName: json['requesterName'] as String? ?? '',
-      approverName: json['approverName'] as String? ?? '',
-      amount: (json['amount'] as num).toDouble(),
-      currency: json['currency'] as String? ?? 'UAH',
-      purpose: json['purpose'] as String? ?? '',
-      status: paymentStatusFromBackend(json['status'] as String),
-      contractorName: json['contractorName'] as String? ?? '',
-    );
+PaymentForm paymentFormFromBackend(String? value) {
+  switch ((value ?? '').trim()) {
+    case 'cash':
+    case 'Form2':
+      return PaymentForm.cash;
+    case 'cashless':
+    case 'Form1':
+      return PaymentForm.cashless;
+    default:
+      return PaymentForm.unknown;
   }
 }

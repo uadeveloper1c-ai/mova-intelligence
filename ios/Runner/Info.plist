@@ -6,6 +6,10 @@
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
 		<string>MOVA Intelligence</string>
+		<key>NSCameraUsageDescription</key>
+        <string>Потрібна камера для розпізнавання рахунків</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Потрібен доступ до фото для розпізнавання рахунків</string>
 		<key>CFBundleExecutable</key>
 		<string>$(EXECUTABLE_NAME)</string>
 		<key>CFBundleIdentifier</key>

@@ -1,4 +1,3 @@
-// lib/api/api_client.dart
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
@@ -10,23 +9,26 @@ class ApiClient {
 
   ApiClient._internal();
 
+  final http.Client _httpClient = http.Client();
+
   String? _accessToken;
   String? get accessToken => _accessToken;
+
   bool _isRefreshing = false;
-  final List<Function> _pendingRequests = [];
+
+  // очередь ожидающих запросов во время refresh
+  final List<Future<void> Function()> _pendingRequests = [];
 
   String? lastLoginError;
 
   /// БАЗОВЫЙ URL API 1С
   final String baseUrl = "https://intelligence.mova.beer/hs/api";
 
-  // === загрузка токенов при запуске
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     _accessToken = prefs.getString("access_token");
   }
 
-  // === сохранить токены
   Future<void> _saveTokens(String access, String refresh) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString("access_token", access);
@@ -34,7 +36,6 @@ class ApiClient {
     _accessToken = access;
   }
 
-  // === очистить токены (при logout)
   Future<void> clearTokens() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("access_token");
@@ -42,7 +43,6 @@ class ApiClient {
     _accessToken = null;
   }
 
-  // === логин
   Future<bool> login(String login, String password) async {
     lastLoginError = null;
     try {
@@ -62,11 +62,9 @@ class ApiClient {
         return true;
       } else {
         if (r.statusCode == 401) {
-          // невірний логін/пароль або відмова в доступі
           lastLoginError = 'Невірний логін або пароль, або немає доступу';
         } else {
-          lastLoginError =
-          'Помилка логіна (HTTP ${r.statusCode})'; // без html-тіла
+          lastLoginError = 'Помилка логіна (HTTP ${r.statusCode})';
         }
         return false;
       }
@@ -79,8 +77,6 @@ class ApiClient {
     }
   }
 
-
-  // === refresh
   Future<bool> _refreshToken() async {
     final prefs = await SharedPreferences.getInstance();
     final refresh = prefs.getString("refresh_token");
@@ -105,12 +101,12 @@ class ApiClient {
 
       return false;
     } catch (e) {
+      // ignore: avoid_print
       print('REFRESH EXCEPTION: $e');
       return false;
     }
   }
 
-  // === универсальный запрос с авто-refresh
   Future<http.Response> sendAuthorizedRequest(
       String method,
       String endpoint, {
@@ -121,20 +117,22 @@ class ApiClient {
 
     Future<http.Response> makeRequest() async {
       final hdr = <String, String>{
-        "Content-Type": "application/json",
+        // ставим JSON по умолчанию, но не ломаем, если передали свой
+        if (headers == null || !headers.containsKey("Content-Type"))
+          "Content-Type": "application/json",
         if (_accessToken != null) "Authorization": "Bearer $_accessToken",
         if (headers != null) ...headers,
       };
 
       switch (method.toUpperCase()) {
         case "GET":
-          return http.get(url, headers: hdr);
+          return _httpClient.get(url, headers: hdr);
         case "POST":
-          return http.post(url, headers: hdr, body: body);
+          return _httpClient.post(url, headers: hdr, body: body);
         case "PUT":
-          return http.put(url, headers: hdr, body: body);
+          return _httpClient.put(url, headers: hdr, body: body);
         case "DELETE":
-          return http.delete(url, headers: hdr);
+          return _httpClient.delete(url, headers: hdr);
         default:
           throw Exception("Unknown HTTP method: $method");
       }
@@ -142,11 +140,9 @@ class ApiClient {
 
     var response = await makeRequest();
 
-    if (response.statusCode != 401) {
-      return response;
-    }
+    if (response.statusCode != 401) return response;
 
-    // если кто-то уже обновляет токен – встаём в очередь
+    // если refresh уже идёт — ждём и повторяем запрос после него
     if (_isRefreshing) {
       final completer = Completer<http.Response>();
       _pendingRequests.add(() async {
@@ -163,15 +159,64 @@ class ApiClient {
       throw Exception("Refresh token expired – нужно логиниться заново");
     }
 
+    // запускаем ожидающих
     for (final fn in _pendingRequests) {
-      fn();
+      await fn();
     }
     _pendingRequests.clear();
 
     return await makeRequest();
   }
 
-  // === me
+  /// RAW (multipart/stream) с Bearer и авто-refresh
+  ///
+  /// Важно: BaseRequest нельзя переиспользовать. Поэтому сюда передаём builder,
+  /// который создаёт НОВЫЙ request каждый раз.
+  Future<http.StreamedResponse> sendAuthorizedRaw(
+      http.BaseRequest Function() requestBuilder,
+      ) async {
+    http.BaseRequest req = requestBuilder();
+
+    if (_accessToken != null) {
+      req.headers["Authorization"] = "Bearer $_accessToken";
+    }
+
+    http.StreamedResponse resp = await _httpClient.send(req);
+
+    if (resp.statusCode != 401) return resp;
+
+    if (_isRefreshing) {
+      final completer = Completer<http.StreamedResponse>();
+      _pendingRequests.add(() async {
+        final r2 = requestBuilder();
+        if (_accessToken != null) {
+          r2.headers["Authorization"] = "Bearer $_accessToken";
+        }
+        completer.complete(await _httpClient.send(r2));
+      });
+      return completer.future;
+    }
+
+    _isRefreshing = true;
+    final ok = await _refreshToken();
+    _isRefreshing = false;
+
+    if (!ok) {
+      throw Exception("Refresh token expired – нужно логиниться заново");
+    }
+
+    for (final fn in _pendingRequests) {
+      await fn();
+    }
+    _pendingRequests.clear();
+
+    final retry = requestBuilder();
+    if (_accessToken != null) {
+      retry.headers["Authorization"] = "Bearer $_accessToken";
+    }
+    return await _httpClient.send(retry);
+  }
+
   Future<Map<String, dynamic>?> getMe() async {
     try {
       final r = await sendAuthorizedRequest("GET", "/me");
@@ -179,32 +224,31 @@ class ApiClient {
         return jsonDecode(r.body) as Map<String, dynamic>;
       }
     } catch (e) {
+      // ignore: avoid_print
       print('GetMe error: $e');
     }
     return null;
   }
 
-  /// Надіслати заявку на оплату в 1С (/sendInvoice)
   Future<Map<String, dynamic>> sendInvoice({
     required String supplierName,
     required double amount,
     required String purpose,
     String? number,
-    String? desiredDateIso, // yyyy-MM-dd
+    String? desiredDateIso,
     String? orgCode,
     String? vendorCode,
     bool urgent = false,
   }) async {
     final Map<String, dynamic> body = {
-      // 1С чекає ці ключі - віддамо хоча б порожні рядки
       'org_code': orgCode ?? '',
       'vendor_code': vendorCode ?? '',
       'vendor_name': supplierName,
-      'amount': amount.toString(), // 1С сама зробить Число(...)
+      'amount': amount.toString(),
       'purpose': purpose,
       'urgent': urgent,
       if (desiredDateIso != null && desiredDateIso.isNotEmpty)
-        'desired_date': desiredDateIso, // "2025-02-01"
+        'desired_date': desiredDateIso,
       if (number != null && number.isNotEmpty) 'invoice_number': number,
     };
 
@@ -217,14 +261,10 @@ class ApiClient {
     if (r.statusCode >= 200 && r.statusCode < 300) {
       return jsonDecode(r.body) as Map<String, dynamic>;
     } else {
-      throw Exception(
-        'Помилка надсилання заявки: ${r.statusCode} ${r.body}',
-      );
+      throw Exception('Помилка надсилання заявки: ${r.statusCode} ${r.body}');
     }
   }
 
-
-  // === регистрация устройства для пушей
   Future<void> registerDevice({
     required String deviceId,
     required String pushToken,
@@ -244,10 +284,10 @@ class ApiClient {
       body: body,
     );
 
+    // ignore: avoid_print
     print('registerDevice: ${r.statusCode} ${r.body}');
   }
 
-  // === снятие устройства с регистрации
   Future<void> unregisterDevice({required String deviceId}) async {
     final body = jsonEncode({"deviceId": deviceId});
 
@@ -257,6 +297,7 @@ class ApiClient {
       body: body,
     );
 
+    // ignore: avoid_print
     print('unregisterDevice: ${r.statusCode} ${r.body}');
   }
 }

@@ -17,6 +17,10 @@ import '../../features/reports/presentation/reports_page.dart';
 import '../../features/approvals/presentation/payment_request_details_page.dart';
 import '../../features/approvals/presentation/new_request_page.dart';
 
+import '../../features/menu/presentation/menu_page.dart';
+import '../../features/events/presentation/events_page.dart';
+import '../../features/invoices/presentation/pages/recognize_page.dart';
+
 GoRouter createRouter(AuthProvider auth) {
   return GoRouter(
     initialLocation: '/login',
@@ -51,9 +55,23 @@ GoRouter createRouter(AuthProvider auth) {
         const AppScaffold(child: InvoicesPage()),
       ),
       GoRoute(
+        path: '/events',
+        builder: (context, state) =>
+        const AppScaffold(child: EventsPage()),
+      ),
+      GoRoute(
+        path: '/invoices/recognize',
+        builder: (context, state) => const AppScaffold(child: RecognizePage()),
+      ),
+      GoRoute(
         path: '/approvals',
         builder: (context, state) =>
         const AppScaffold(child: ApprovalsPage()),
+      ),
+
+      GoRoute(
+        path: '/menu',
+        builder: (context, state) => const AppScaffold(child: MenuPage()),
       ),
 
       // 🔹 НОВАЯ ЗАЯВКА
@@ -72,7 +90,10 @@ GoRouter createRouter(AuthProvider auth) {
         builder: (context, state) {
           final uid = state.pathParameters['uid']!;
           return AppScaffold(
-            child: PaymentRequestDetailsPage(requestId: uid),
+            child: PaymentRequestDetailsPage(
+              uid: uid,
+              allowActions: true,
+            ),
           );
         },
       ),

@@ -1,10 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_client.dart';
+import '../main.dart'; // ✅ ВАЖНО: с ;
+import 'package:flutter/material.dart';
 
 typedef ApprovalPushHandler = void Function({
 required String type,
@@ -17,14 +21,17 @@ class PushService {
 
   final ApiClient _apiClient;
   final FirebaseMessaging _fm = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications =
+  FlutterLocalNotificationsPlugin();
 
   static const _prefDeviceId = 'device_id';
 
-  /// Хэндлер, который выставляется в main.dart и делает навигацию в заявку
   ApprovalPushHandler? onApprovalPush;
+  VoidCallback? onDataRefreshNeeded;
 
-  /// Если пуш был получен до старта UI/роутера — сохраним requestUid сюда
   String? initialApprovalRequestId;
+
+  bool _localInited = false;
 
   Future<void> init() async {
     if (!kIsWeb) {
@@ -35,23 +42,35 @@ class PushService {
       );
     }
 
-    // ✅ Foreground сообщения
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+    await _initLocalNotifications();
+
+    /// 🔥 FOREGROUND PUSH
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       debugPrint(
         'FCM onMessage: ${message.notification?.title} | '
             '${message.notification?.body} | data=${message.data}',
       );
 
+      /// 1. системное уведомление
+      await _showForegroundNotification(message);
+
+      /// 2. snackbar (на любой странице)
+      _showGlobalSnack(message.data);
+
+      /// 3. обработка (навигация)
       _handleApprovalData(message.data);
+
+      /// 4. обновление UI
+      onDataRefreshNeeded?.call();
     });
 
-    // ✅ Когда пользователь тапнул по пушу и приложение было в фоне
+    /// 🔥 BACKGROUND TAP
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       debugPrint('FCM onMessageOpenedApp: data=${message.data}');
       _handleApprovalData(message.data);
     });
 
-    // ✅ Когда приложение было полностью закрыто и запустилось пушем
+    /// 🔥 APP CLOSED → OPENED BY PUSH
     final initialMessage = await _fm.getInitialMessage();
     if (initialMessage != null) {
       debugPrint('FCM getInitialMessage: data=${initialMessage.data}');
@@ -64,7 +83,151 @@ class PushService {
     });
   }
 
-  /// Регистрация текущего устройства в 1С
+  Future<void> _initLocalNotifications() async {
+    if (_localInited || kIsWeb) return;
+
+    const androidSettings =
+    AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosSettings = DarwinInitializationSettings();
+
+    const settings = InitializationSettings(
+      android: androidSettings,
+      iOS: iosSettings,
+    );
+
+    await _localNotifications.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (response) {
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+
+        try {
+          final data =
+          Map<String, dynamic>.from(jsonDecode(payload) as Map);
+          _handleApprovalData(data);
+        } catch (e) {
+          debugPrint('Local notification payload parse error: $e');
+        }
+      },
+    );
+
+    const channel = AndroidNotificationChannel(
+      'mova_approvals',
+      'MOVA approvals',
+      description: 'Approval notifications',
+      importance: Importance.max,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
+    _localInited = true;
+  }
+
+  Future<void> _showForegroundNotification(RemoteMessage message) async {
+    if (kIsWeb) return;
+
+    final title =
+        message.notification?.title ?? _titleFromData(message.data) ?? 'MOVA';
+
+    final body =
+        message.notification?.body ??
+            _bodyFromData(message.data) ??
+            'Нове повідомлення';
+
+    final payload = jsonEncode(message.data);
+
+    const androidDetails = AndroidNotificationDetails(
+      'mova_approvals',
+      'MOVA approvals',
+      channelDescription: 'Approval notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const iosDetails = DarwinNotificationDetails();
+
+    const details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      details,
+      payload: payload,
+    );
+  }
+
+  void _showGlobalSnack(Map<String, dynamic> data) {
+    final messenger = rootMessengerKey.currentState;
+    if (messenger == null) return;
+
+    final type = (data['type'] ?? '').toString();
+
+    String text;
+    switch (type) {
+      case 'approval_new':
+        text = 'Нова заявка на погодження';
+        break;
+      case 'approval_approved':
+        text = 'Заявку погоджено';
+        break;
+      case 'approval_rejected':
+        text = 'Заявку відхилено';
+        break;
+      default:
+        text = 'Нове повідомлення';
+    }
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(text),
+        duration: const Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'Відкрити',
+          onPressed: () {
+            _handleApprovalData(data);
+          },
+        ),
+      ),
+    );
+  }
+
+  String? _titleFromData(Map<String, dynamic> data) {
+    final type = (data['type'] ?? '').toString();
+
+    switch (type) {
+      case 'approval_new':
+        return 'Нова заявка';
+      case 'approval_approved':
+        return 'Заявку погоджено';
+      case 'approval_rejected':
+        return 'Заявку відхилено';
+      default:
+        return 'MOVA';
+    }
+  }
+
+  String? _bodyFromData(Map<String, dynamic> data) {
+    final type = (data['type'] ?? '').toString();
+
+    switch (type) {
+      case 'approval_new':
+        return 'Є нова заявка на погодження';
+      case 'approval_approved':
+        return 'Ваша заявка погоджена';
+      case 'approval_rejected':
+        return 'Ваша заявка відхилена';
+      default:
+        return 'Натисніть, щоб відкрити';
+    }
+  }
+
   Future<void> registerCurrentDevice() async {
     final token = await _fm.getToken();
     debugPrint('FCM current token: $token');
@@ -73,7 +236,6 @@ class PushService {
     await _register(token);
   }
 
-  /// Разрегистрация устройства (на logout)
   Future<void> unregisterCurrentDevice() async {
     final prefs = await SharedPreferences.getInstance();
     final deviceId = prefs.getString(_prefDeviceId);
@@ -93,13 +255,12 @@ class PushService {
     final type = (data['type'] ?? '').toString();
     if (type.isEmpty) return;
 
-    // ожидаем: approval_new / approval_approved / approval_rejected
-    final requestUid = (data['request_uid'] ?? data['requestUid'] ?? '').toString();
+    final requestUid =
+    (data['request_uid'] ?? data['requestUid'] ?? '').toString();
     final orgUid = (data['org_uid'] ?? data['orgUid'])?.toString();
 
     if (requestUid.isEmpty) return;
 
-    // если UI уже готов — дергаем колбэк
     if (onApprovalPush != null) {
       onApprovalPush!(
         type: type,
@@ -109,7 +270,6 @@ class PushService {
       return;
     }
 
-    // иначе сохраним, main потом подхватит
     initialApprovalRequestId = requestUid;
   }
 

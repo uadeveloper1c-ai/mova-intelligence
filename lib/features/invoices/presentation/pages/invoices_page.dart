@@ -209,7 +209,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           ),
                           const SizedBox(height: 6),
                           DropdownButtonFormField<String>(
-                            value: _orgCode,
+                            initialValue: _orgCode,
                             items: orgItems,
                             onChanged: (v) => setState(() => _orgCode = v),
                             validator: (v) =>
