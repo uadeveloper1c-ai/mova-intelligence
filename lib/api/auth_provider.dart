@@ -19,6 +19,13 @@ class AuthProvider extends ChangeNotifier {
   UserModel? currentUser;
   bool isLoading = false;
   bool _canApprovePayments = false;
+  bool _canNotifyOwnSubdivision = false;
+  bool _canNotifyOtherSubdivisions = false;
+  bool _canNotifyUsers = false;
+  bool _canNotifyAll = false;
+  bool _canNotifyOwner = false;
+  String? _defaultSubdivisionUid;
+  int _avatarVersion = 0;
   String? lastError;
 
   bool get isLoggedIn => currentUser != null;
@@ -50,6 +57,20 @@ class AuthProvider extends ChangeNotifier {
   String get approvalsTitle =>
       canApprovePayments ? 'На погодженні' : 'Мої заявки';
 
+  bool get canNotifyOwnSubdivision => _canNotifyOwnSubdivision;
+  bool get canNotifyOtherSubdivisions => _canNotifyOtherSubdivisions;
+  bool get canNotifyUsers => _canNotifyUsers;
+  bool get canNotifyAll => _canNotifyAll;
+  bool get canNotifyOwner => _canNotifyOwner;
+  String? get defaultSubdivisionUid => _defaultSubdivisionUid;
+  int get avatarVersion => _avatarVersion;
+  bool get canAccessNotifications =>
+      _canNotifyOwnSubdivision ||
+      _canNotifyOtherSubdivisions ||
+      _canNotifyUsers ||
+      _canNotifyAll ||
+      _canNotifyOwner;
+
   bool _parseBool(dynamic value) {
     if (value == null) return false;
     if (value is bool) return value;
@@ -66,42 +87,82 @@ class AuthProvider extends ChangeNotifier {
 
       if (me == null) return;
 
-      final user = UserModel.fromJson(me);
-      currentUser = user;
+      final meMap = Map<String, dynamic>.from(me);
 
       // ✅ Прямой флаг с сервера
-      _canApprovePayments = _parseBool(me['canApprovePayments']);
+      _canApprovePayments = _parseBool(meMap['canApprovePayments']);
+      _canNotifyOwnSubdivision = _parseBool(meMap['canNotifyOwnSubdivision']);
+      _canNotifyOtherSubdivisions =
+          _parseBool(meMap['canNotifyOtherSubdivisions']);
+      _canNotifyUsers = _parseBool(meMap['canNotifyUsers']);
+      _canNotifyAll = _parseBool(meMap['canNotifyAll']);
+      _canNotifyOwner = _parseBool(meMap['canNotifyOwner']);
+      _defaultSubdivisionUid = meMap['defaultSubdivisionUid']?.toString() ??
+          meMap['defaultSubdivision']?.toString() ??
+          meMap['defaultsubdivision']?.toString();
 
-      final String? userUid = me['uid']?.toString();
+      final String? userUid = meMap['uid']?.toString();
 
       List<OrgAccess> orgs = [];
       List<SubdivisionAccess> subdivisions = [];
       try {
-        final orgsJson = me['orgs'] as List<dynamic>? ?? const [];
+        final orgsJson = meMap['orgs'] as List<dynamic>? ?? const [];
         orgs = orgsJson
             .map(
               (e) => OrgAccess.fromJson(
-            Map<String, dynamic>.from(e as Map),
-          ),
-        )
+                Map<String, dynamic>.from(e as Map),
+              ),
+            )
             .toList();
       } catch (e) {
         debugPrint('AuthProvider.loadUser: error parsing orgs: $e');
       }
-
       try {
-        final subdivisionsJson = me['subdivisions'] as List<dynamic>? ?? const [];
+        final subdivisionsJson =
+            meMap['subdivisions'] as List<dynamic>? ?? const [];
         subdivisions = subdivisionsJson
             .map(
               (e) => SubdivisionAccess.fromJson(
                 Map<String, dynamic>.from(e as Map),
               ),
             )
-            .where((e) => e.uid.isNotEmpty)
             .toList();
       } catch (e) {
         debugPrint('AuthProvider.loadUser: error parsing subdivisions: $e');
       }
+
+      final hasSubdivisionName = (meMap['subdivisionName']
+                  ?.toString()
+                  .trim()
+                  .isNotEmpty ??
+              false) ||
+          (meMap['name_subdivision']?.toString().trim().isNotEmpty ?? false) ||
+          (meMap['subdivision_name']?.toString().trim().isNotEmpty ?? false) ||
+          (meMap['Підрозділ']?.toString().trim().isNotEmpty ?? false) ||
+          (meMap['Подразделение']?.toString().trim().isNotEmpty ?? false);
+
+      if (!hasSubdivisionName && subdivisions.isNotEmpty) {
+        SubdivisionAccess? subdivision;
+        final defaultUid = _defaultSubdivisionUid?.trim() ?? '';
+
+        if (defaultUid.isNotEmpty) {
+          for (final item in subdivisions) {
+            if (item.uid == defaultUid) {
+              subdivision = item;
+              break;
+            }
+          }
+        }
+
+        subdivision ??= subdivisions.length == 1 ? subdivisions.first : null;
+
+        if (subdivision != null && subdivision.name.trim().isNotEmpty) {
+          meMap['subdivisionName'] = subdivision.name;
+        }
+      }
+
+      final user = UserModel.fromJson(meMap);
+      currentUser = user;
 
       final session = SessionData(
         token: _apiClient.accessToken ?? '',
@@ -109,6 +170,7 @@ class AuthProvider extends ChangeNotifier {
         canApprovePayments: canApprovePayments,
         orgs: orgs,
         subdivisions: subdivisions,
+        defaultSubdivisionUid: _defaultSubdivisionUid,
         userUid: userUid,
       );
       await SessionStore.saveSession(session);
@@ -138,8 +200,15 @@ class AuthProvider extends ChangeNotifier {
         uid: login,
         name: login,
         roles: const [],
+        avatarUrl: '',
       );
       _canApprovePayments = false;
+      _canNotifyOwnSubdivision = false;
+      _canNotifyOtherSubdivisions = false;
+      _canNotifyUsers = false;
+      _canNotifyAll = false;
+      _canNotifyOwner = false;
+      _defaultSubdivisionUid = null;
       notifyListeners();
 
       // Подтягиваем реальные данные
@@ -170,8 +239,33 @@ class AuthProvider extends ChangeNotifier {
 
     currentUser = null;
     _canApprovePayments = false;
+    _canNotifyOwnSubdivision = false;
+    _canNotifyOtherSubdivisions = false;
+    _canNotifyUsers = false;
+    _canNotifyAll = false;
+    _canNotifyOwner = false;
+    _defaultSubdivisionUid = null;
     lastError = null;
 
     notifyListeners();
+  }
+
+  Future<void> uploadAvatar({
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final response =
+        await _apiClient.uploadAvatar(bytes: bytes, mimeType: mimeType);
+    final avatarUrl = response['avatarUrl']?.toString() ??
+        response['avatar_url']?.toString() ??
+        '';
+
+    if (currentUser != null && avatarUrl.trim().isNotEmpty) {
+      currentUser = currentUser!.copyWith(avatarUrl: avatarUrl.trim());
+      notifyListeners();
+    }
+
+    _avatarVersion++;
+    await loadUser();
   }
 }

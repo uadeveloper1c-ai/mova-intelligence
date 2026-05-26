@@ -3,42 +3,45 @@ import 'package:flutter/material.dart';
 class TasksPage extends StatelessWidget {
   const TasksPage({super.key});
 
-  static const _panel = Color(0xFF0B1220);
-  static const _border = Color(0xFF111827);
-  static const _text = Color(0xFFE5E7EB);
-  static const _sub = Color(0xFF9CA3AF);
   static const _accent = Color(0xFF22C55E);
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final panel = cs.surface;
+    final border = theme.dividerTheme.color ?? cs.outlineVariant;
+    final text = cs.onSurface;
+    final sub = theme.textTheme.bodyMedium?.color ??
+        cs.onSurface.withValues(alpha: 0.72);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       children: [
-        const Text(
+        Text(
           'Задачі',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w800,
-            color: _text,
+            color: text,
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Модуль задач готується до наступного етапу розвитку.',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: _sub,
+            color: sub,
           ),
         ),
         const SizedBox(height: 16),
-
         Container(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           decoration: BoxDecoration(
-            color: _panel.withValues(alpha: 0.92),
+            color: panel,
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: _border),
+            border: Border.all(color: border),
           ),
           child: Column(
             children: [
@@ -57,21 +60,21 @@ class TasksPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'Скоро тут буде повноцінний екран задач',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _text,
+                  color: text,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Поручення, відповідальні, строки виконання та статуси.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _sub,
+                  color: sub,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   height: 1.35,
@@ -79,16 +82,17 @@ class TasksPage extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.14),
+                  color: cs.surfaceContainerHighest.withValues(alpha: 0.34),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: _border),
+                  border: Border.all(color: border),
                 ),
-                child: const Text(
-                  'MOVA Intelligence v1.2',
+                child: Text(
+                  'MOVA Intelligence v1.3.0',
                   style: TextStyle(
-                    color: _sub,
+                    color: sub,
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),

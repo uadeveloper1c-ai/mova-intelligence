@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -22,7 +23,19 @@ class ApiClient {
   String? lastLoginError;
 
   /// БАЗОВЫЙ URL API 1С
-  final String baseUrl = "https://intelligence.mova.beer/hs/api";
+  final String baseUrl = const String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'https://intelligence.mova.beer/hs/api',
+  );
+
+  String resolveUrl(String rawUrl) {
+    final text = rawUrl.trim();
+    if (text.isEmpty) return '';
+    if (text.startsWith('http://') || text.startsWith('https://')) {
+      return text;
+    }
+    return Uri.parse(baseUrl).resolve(text).toString();
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -50,10 +63,10 @@ class ApiClient {
 
       final r = await http
           .post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"login": login, "password": password}),
-      )
+            url,
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"login": login, "password": password}),
+          )
           .timeout(const Duration(seconds: 15));
 
       if (r.statusCode == 200) {
@@ -87,10 +100,10 @@ class ApiClient {
 
       final r = await http
           .post(
-        url,
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"refresh_token": refresh}),
-      )
+            url,
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({"refresh_token": refresh}),
+          )
           .timeout(const Duration(seconds: 15));
 
       if (r.statusCode == 200) {
@@ -108,11 +121,11 @@ class ApiClient {
   }
 
   Future<http.Response> sendAuthorizedRequest(
-      String method,
-      String endpoint, {
-        Map<String, String>? headers,
-        Object? body,
-      }) async {
+    String method,
+    String endpoint, {
+    Map<String, String>? headers,
+    Object? body,
+  }) async {
     final url = Uri.parse("$baseUrl$endpoint");
 
     Future<http.Response> makeRequest() async {
@@ -173,8 +186,8 @@ class ApiClient {
   /// Важно: BaseRequest нельзя переиспользовать. Поэтому сюда передаём builder,
   /// который создаёт НОВЫЙ request каждый раз.
   Future<http.StreamedResponse> sendAuthorizedRaw(
-      http.BaseRequest Function() requestBuilder,
-      ) async {
+    http.BaseRequest Function() requestBuilder,
+  ) async {
     http.BaseRequest req = requestBuilder();
 
     if (_accessToken != null) {
@@ -228,6 +241,30 @@ class ApiClient {
       print('GetMe error: $e');
     }
     return null;
+  }
+
+  Future<Map<String, dynamic>> uploadAvatar({
+    required Uint8List bytes,
+    required String mimeType,
+  }) async {
+    final body = jsonEncode({
+      'content_type': mimeType,
+      'data_base64': base64Encode(bytes),
+    });
+
+    final r = await sendAuthorizedRequest(
+      'POST',
+      '/users/avatar/upload',
+      body: body,
+    );
+
+    final responseBody = utf8.decode(r.bodyBytes);
+    if (r.statusCode >= 200 && r.statusCode < 300) {
+      return jsonDecode(responseBody) as Map<String, dynamic>;
+    }
+
+    throw Exception(
+        'Помилка завантаження аватара: ${r.statusCode} $responseBody');
   }
 
   Future<Map<String, dynamic>> sendInvoice({

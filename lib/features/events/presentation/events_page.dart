@@ -118,7 +118,7 @@ class _EventsPageState extends State<EventsPage> {
     final reqUid = payload['request_uid']?.toString();
     if (reqUid != null && reqUid.isNotEmpty) {
       if (!mounted) return;
-      context.push('/approvals/request/$reqUid');
+      context.push('/approvals/request/$reqUid?actions=1');
       return;
     }
 
@@ -177,9 +177,7 @@ class _EventsPageState extends State<EventsPage> {
               ],
             ),
             const SizedBox(height: 10),
-
             if (_loading) const LinearProgressIndicator(),
-
             if (_error != null)
               Container(
                 width: double.infinity,
@@ -195,15 +193,12 @@ class _EventsPageState extends State<EventsPage> {
                   style: TextStyle(color: Colors.red.shade800),
                 ),
               ),
-
             const SizedBox(height: 10),
-
             if (!_loading && _error == null && _items.isEmpty)
               const Padding(
                 padding: EdgeInsets.only(top: 20),
                 child: Center(child: Text('Поки немає подій')),
               ),
-
             for (final e in _items)
               Card(
                 elevation: 6,

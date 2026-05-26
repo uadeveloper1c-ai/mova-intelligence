@@ -3,36 +3,38 @@ import 'package:flutter/material.dart';
 class ReportsPage extends StatelessWidget {
   const ReportsPage({super.key});
 
-  static const _panel = Color(0xFF0B1220);
-  static const _border = Color(0xFF111827);
-  static const _text = Color(0xFFE5E7EB);
-  static const _sub = Color(0xFF9CA3AF);
-
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final panel = cs.surface;
+    final border = theme.dividerTheme.color ?? cs.outlineVariant;
+    final text = cs.onSurface;
+    final sub = theme.textTheme.bodyMedium?.color ??
+        cs.onSurface.withValues(alpha: 0.72);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
       children: [
-        const Text(
+        Text(
           'Звіти та аналітика',
           style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w800,
-            color: _text,
+            color: text,
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Підготовка екрану для керівника. У версії 1.2 тут буде короткий бізнес-огляд.',
+        Text(
+          'Підготовка екрану для керівника. У версії 1.3.0 тут буде короткий бізнес-огляд.',
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: _sub,
+            color: sub,
             height: 1.35,
           ),
         ),
         const SizedBox(height: 16),
-
         const Row(
           children: [
             Expanded(
@@ -55,7 +57,6 @@ class ReportsPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-
         const Row(
           children: [
             Expanded(
@@ -78,9 +79,8 @@ class ReportsPage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-
         const _PreviewCard(
-          title: 'Що з’явиться у v1.2',
+          title: 'Що з’явиться у v1.3.0',
           items: [
             'Кількість заявок за період',
             'Статуси: на погодженні / до оплати / оплачено',
@@ -91,7 +91,6 @@ class ReportsPage extends StatelessWidget {
           icon: Icons.auto_graph_rounded,
         ),
         const SizedBox(height: 12),
-
         const _PreviewCard(
           title: 'Статус екрану',
           items: [
@@ -102,23 +101,22 @@ class ReportsPage extends StatelessWidget {
           icon: Icons.flag_outlined,
         ),
         const SizedBox(height: 18),
-
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: _panel.withValues(alpha: 0.9),
+            color: panel,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: _border),
+            border: Border.all(color: border),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.rocket_launch_outlined, color: _sub),
-              SizedBox(width: 10),
+              Icon(Icons.rocket_launch_outlined, color: sub),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'MOVA Intelligence v1.2 preview',
+                  'MOVA Intelligence v1.3.0 preview',
                   style: TextStyle(
-                    color: _text,
+                    color: text,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -144,20 +142,24 @@ class _KpiCard extends StatelessWidget {
   final String subtitle;
   final IconData icon;
 
-  static const _panel = Color(0xFF0B1220);
-  static const _border = Color(0xFF111827);
-  static const _text = Color(0xFFE5E7EB);
-  static const _sub = Color(0xFF9CA3AF);
   static const _accent = Color(0xFF22D3EE);
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final panel = cs.surface;
+    final border = theme.dividerTheme.color ?? cs.outlineVariant;
+    final text = cs.onSurface;
+    final sub = theme.textTheme.bodyMedium?.color ??
+        cs.onSurface.withValues(alpha: 0.72);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
-        color: _panel.withValues(alpha: 0.92),
+        color: panel,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _border),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,8 +177,8 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             title,
-            style: const TextStyle(
-              color: _sub,
+            style: TextStyle(
+              color: sub,
               fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
@@ -184,8 +186,8 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             value,
-            style: const TextStyle(
-              color: _text,
+            style: TextStyle(
+              color: text,
               fontSize: 28,
               fontWeight: FontWeight.w900,
               height: 1,
@@ -194,8 +196,8 @@ class _KpiCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: const TextStyle(
-              color: _sub,
+            style: TextStyle(
+              color: sub,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -217,20 +219,24 @@ class _PreviewCard extends StatelessWidget {
   final List<String> items;
   final IconData icon;
 
-  static const _panel = Color(0xFF0B1220);
-  static const _border = Color(0xFF111827);
-  static const _text = Color(0xFFE5E7EB);
-  static const _sub = Color(0xFF9CA3AF);
   static const _accent = Color(0xFF22D3EE);
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final panel = cs.surface;
+    final border = theme.dividerTheme.color ?? cs.outlineVariant;
+    final text = cs.onSurface;
+    final sub = theme.textTheme.bodyMedium?.color ??
+        cs.onSurface.withValues(alpha: 0.72);
+
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       decoration: BoxDecoration(
-        color: _panel.withValues(alpha: 0.92),
+        color: panel,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _border),
+        border: Border.all(color: border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,8 +257,8 @@ class _PreviewCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: const TextStyle(
-                    color: _text,
+                  style: TextStyle(
+                    color: text,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
                   ),
@@ -265,20 +271,20 @@ class _PreviewCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(top: 3),
+                Padding(
+                  padding: const EdgeInsets.only(top: 3),
                   child: Icon(
                     Icons.check_circle_outline_rounded,
                     size: 16,
-                    color: _sub,
+                    color: sub,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     item,
-                    style: const TextStyle(
-                      color: _sub,
+                    style: TextStyle(
+                      color: sub,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                       height: 1.35,

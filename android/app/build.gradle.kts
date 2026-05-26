@@ -1,9 +1,7 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // Flutter
     id("dev.flutter.flutter-gradle-plugin")
-    // Google Services (Firebase)
     id("com.google.gms.google-services")
 }
 
@@ -43,13 +41,7 @@ android {
     }
 }
 
-// 🔥 Вот ЭТО — самое важное для ошибки messaging-ktx
 dependencies {
-    // BoM – сюда подставится версии всех firebase-* библиотек
-    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
-
-    // Firebase Cloud Messaging (KTX)
-    implementation("com.google.firebase:firebase-messaging-ktx")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }
 

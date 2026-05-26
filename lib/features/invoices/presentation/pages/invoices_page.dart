@@ -10,20 +10,20 @@ import '../../../approvals/domain/payment_request.dart';
 
 /// Форма оплати, яку будемо відправляти на бекенд
 enum PaymentForm {
-  cash,       // готівка
-  nonCash,    // безготівкова
-  any,        // будь-яка
+  cash, // готівка
+  nonCash, // безготівкова
+  any, // будь-яка
 }
 
 /// Маппінг на рядок для 1С
 String paymentFormToBackend(PaymentForm f) {
   switch (f) {
     case PaymentForm.cash:
-      return 'Cash';      // тут можеш замінити на свій код, напр. "Нал"
+      return 'Cash'; // тут можеш замінити на свій код, напр. "Нал"
     case PaymentForm.nonCash:
-      return 'NonCash';   // або "Безнал"
+      return 'NonCash'; // або "Безнал"
     case PaymentForm.any:
-      return 'Any';       // або "AnyForm"/"Любая"
+      return 'Any'; // або "AnyForm"/"Любая"
   }
 }
 
@@ -150,10 +150,10 @@ class _InvoicesPageState extends State<InvoicesPage> {
     final orgItems = _orgs
         .map(
           (o) => DropdownMenuItem<String>(
-        value: o.code,
-        child: Text(o.name),
-      ),
-    )
+            value: o.code,
+            child: Text(o.name),
+          ),
+        )
         .toList();
 
     final theme = Theme.of(context);
@@ -184,7 +184,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                         title: const Text('Заповнити з файла / камери'),
                         subtitle: const Text(
                           'Рахунок, акт, накладна → сума, призначення,\n'
-                              'постачальник підтягнуться автоматично',
+                          'постачальник підтягнуться автоматично',
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
@@ -213,7 +213,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             items: orgItems,
                             onChanged: (v) => setState(() => _orgCode = v),
                             validator: (v) =>
-                            (v == null || v.isEmpty) ? 'Обовʼязково' : null,
+                                (v == null || v.isEmpty) ? 'Обовʼязково' : null,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
                               hintText: 'Виберіть юрособу',
@@ -233,8 +233,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               border: OutlineInputBorder(),
                               hintText: 'Наприклад: ТОВ "Пиво Снаб"',
                             ),
-                            validator: (v) =>
-                            (v == null || v.trim().isEmpty)
+                            validator: (v) => (v == null || v.trim().isEmpty)
                                 ? 'Вкажіть постачальника'
                                 : null,
                           ),
@@ -248,8 +247,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _vendorCodeCtrl,
-                            keyboardType:
-                            const TextInputType.numberWithOptions(
+                            keyboardType: const TextInputType.numberWithOptions(
                                 signed: false),
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
@@ -279,8 +277,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           const SizedBox(height: 6),
                           TextFormField(
                             controller: _amountCtrl,
-                            keyboardType:
-                            const TextInputType.numberWithOptions(
+                            keyboardType: const TextInputType.numberWithOptions(
                                 decimal: true),
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
@@ -290,8 +287,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                               if (v == null || v.trim().isEmpty) {
                                 return 'Введіть суму';
                               }
-                              final parsed = num.tryParse(
-                                  v.trim().replaceAll(',', '.'));
+                              final parsed =
+                                  num.tryParse(v.trim().replaceAll(',', '.'));
                               if (parsed == null || parsed <= 0) {
                                 return 'Сума некоректна';
                               }
@@ -311,11 +308,9 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             maxLines: 3,
                             decoration: const InputDecoration(
                               border: OutlineInputBorder(),
-                              hintText:
-                              'За що платимо? Кому? За який період?',
+                              hintText: 'За що платимо? Кому? За який період?',
                             ),
-                            validator: (v) =>
-                            (v == null || v.trim().isEmpty)
+                            validator: (v) => (v == null || v.trim().isEmpty)
                                 ? 'Заповніть призначення'
                                 : null,
                           ),
@@ -331,8 +326,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             onTap: () async {
                               final picked = await showDatePicker(
                                 context: context,
-                                initialDate:
-                                _desiredDate ?? DateTime.now(),
+                                initialDate: _desiredDate ?? DateTime.now(),
                                 firstDate: DateTime.now(),
                                 lastDate: DateTime.now()
                                     .add(const Duration(days: 365)),
@@ -350,8 +344,8 @@ class _InvoicesPageState extends State<InvoicesPage> {
                                 _desiredDate == null
                                     ? 'Не вибрана'
                                     : '${_desiredDate!.day.toString().padLeft(2, '0')}.'
-                                    '${_desiredDate!.month.toString().padLeft(2, '0')}.'
-                                    '${_desiredDate!.year}',
+                                        '${_desiredDate!.month.toString().padLeft(2, '0')}.'
+                                        '${_desiredDate!.year}',
                               ),
                             ),
                           ),
@@ -364,26 +358,28 @@ class _InvoicesPageState extends State<InvoicesPage> {
                           ),
                           const SizedBox(height: 6),
 
-                          RadioListTile<PaymentForm>(
-                            title: const Text('Безготівкова'),
-                            value: PaymentForm.nonCash,
+                          RadioGroup<PaymentForm>(
                             groupValue: _paymentForm,
-                            onChanged: (v) =>
-                                setState(() => _paymentForm = v!),
-                          ),
-                          RadioListTile<PaymentForm>(
-                            title: const Text('Готівка'),
-                            value: PaymentForm.cash,
-                            groupValue: _paymentForm,
-                            onChanged: (v) =>
-                                setState(() => _paymentForm = v!),
-                          ),
-                          RadioListTile<PaymentForm>(
-                            title: const Text('Будь-яка'),
-                            value: PaymentForm.any,
-                            groupValue: _paymentForm,
-                            onChanged: (v) =>
-                                setState(() => _paymentForm = v!),
+                            onChanged: (v) {
+                              if (v == null) return;
+                              setState(() => _paymentForm = v);
+                            },
+                            child: Column(
+                              children: [
+                                RadioListTile<PaymentForm>(
+                                  title: const Text('Безготівкова'),
+                                  value: PaymentForm.nonCash,
+                                ),
+                                RadioListTile<PaymentForm>(
+                                  title: const Text('Готівка'),
+                                  value: PaymentForm.cash,
+                                ),
+                                RadioListTile<PaymentForm>(
+                                  title: const Text('Будь-яка'),
+                                  value: PaymentForm.any,
+                                ),
+                              ],
+                            ),
                           ),
 
                           const SizedBox(height: 16),
@@ -403,8 +399,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
 
                           if (_error != null)
                             Padding(
-                              padding:
-                              const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.only(bottom: 12),
                               child: Text(
                                 _error!,
                                 style: TextStyle(
@@ -419,8 +414,7 @@ class _InvoicesPageState extends State<InvoicesPage> {
                             child: FilledButton.icon(
                               onPressed: _sending ? null : _submit,
                               icon: const Icon(Icons.send),
-                              label:
-                              const Text('Відправити заявку на оплату'),
+                              label: const Text('Відправити заявку на оплату'),
                             ),
                           ),
                         ],
@@ -430,7 +424,6 @@ class _InvoicesPageState extends State<InvoicesPage> {
                 ),
               ),
             ),
-
             if (_sending)
               const Align(
                 alignment: Alignment.topCenter,

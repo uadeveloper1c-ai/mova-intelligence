@@ -126,6 +126,12 @@ class _LoginPageState extends State<LoginPage> {
                               controller: _loginCtrl,
                               textInputAction: TextInputAction.next,
                               autofillHints: const [AutofillHints.username],
+                              keyboardType: TextInputType.emailAddress,
+                              textCapitalization: TextCapitalization.none,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              smartDashesType: SmartDashesType.disabled,
+                              smartQuotesType: SmartQuotesType.disabled,
                               decoration: const InputDecoration(
                                 labelText: 'Логін',
                                 prefixIcon: Icon(Icons.person_outline),
@@ -137,12 +143,16 @@ class _LoginPageState extends State<LoginPage> {
                               },
                             ),
                             const SizedBox(height: 12),
-
                             TextFormField(
                               controller: _passCtrl,
                               obscureText: _obscure,
                               textInputAction: TextInputAction.done,
                               autofillHints: const [AutofillHints.password],
+                              textCapitalization: TextCapitalization.none,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              smartDashesType: SmartDashesType.disabled,
+                              smartQuotesType: SmartQuotesType.disabled,
                               onFieldSubmitted: (_) => _submit(),
                               decoration: InputDecoration(
                                 labelText: 'Пароль',
@@ -164,9 +174,7 @@ class _LoginPageState extends State<LoginPage> {
                                 return null;
                               },
                             ),
-
                             const SizedBox(height: 14),
-
                             if (auth.lastError != null &&
                                 auth.lastError!.isNotEmpty)
                               Container(
@@ -186,9 +194,7 @@ class _LoginPageState extends State<LoginPage> {
                                   ),
                                 ),
                               ),
-
                             const SizedBox(height: 12),
-
                             SizedBox(
                               width: double.infinity,
                               height: 46,
@@ -196,23 +202,21 @@ class _LoginPageState extends State<LoginPage> {
                                 onPressed: auth.isLoading ? null : _submit,
                                 child: auth.isLoading
                                     ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                        ),
+                                      )
                                     : const Text(
-                                  'Увійти',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                                        'Увійти',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
                               ),
                             ),
-
                             const SizedBox(height: 10),
-
                             Row(
                               children: [
                                 const Icon(
@@ -223,8 +227,7 @@ class _LoginPageState extends State<LoginPage> {
                                 Expanded(
                                   child: Text(
                                     'Дані передаються по HTTPS. Якщо немає доступу — зверніться до адміністратора.',
-                                    style:
-                                    theme.textTheme.bodySmall?.copyWith(
+                                    style: theme.textTheme.bodySmall?.copyWith(
                                       color: theme.hintColor,
                                     ),
                                   ),

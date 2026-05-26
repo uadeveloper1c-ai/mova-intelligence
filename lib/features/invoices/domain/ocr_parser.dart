@@ -23,8 +23,8 @@ class OcrParser {
 
     // -------- 1) ЄДРПОУ / ИНН --------
     String vendorCode = '';
-    final codeRegex =
-    RegExp(r'(ЄДРПОУ|ЕДРПОУ|ДРФО|ИНН|ІПН|ІПН\/ЄДРПОУ)[^\d]{0,30}(\d{8,12})');
+    final codeRegex = RegExp(
+        r'(ЄДРПОУ|ЕДРПОУ|ДРФО|ИНН|ІПН|ІПН\/ЄДРПОУ)[^\d]{0,30}(\d{8,12})');
     final codeMatch = codeRegex.firstMatch(t);
     if (codeMatch != null) vendorCode = codeMatch.group(2) ?? '';
 
@@ -42,7 +42,7 @@ class OcrParser {
     }
 
     // -------- утилиты --------
-    String _cleanupLabelValue(String s) {
+    String cleanupLabelValue(String s) {
       // удаляем "Постачальник:", "Призначення:" и т.п.
       return s
           .replaceAll(RegExp(r'^[\s:—-]+'), '')
@@ -50,14 +50,14 @@ class OcrParser {
           .trim();
     }
 
-    String _takeAfterLabel(String line, RegExp label) {
+    String takeAfterLabel(String line, RegExp label) {
       final m = label.firstMatch(line);
       if (m == null) return '';
       final after = line.substring(m.end);
-      return _cleanupLabelValue(after);
+      return cleanupLabelValue(after);
     }
 
-    bool _looksLikeCompanyName(String lineUpper) {
+    bool looksLikeCompanyName(String lineUpper) {
       return lineUpper.contains('ТОВ') ||
           lineUpper.contains('ФОП') ||
           lineUpper.contains('FOP') ||
@@ -77,7 +77,7 @@ class OcrParser {
     );
 
     for (final line in nonEmptyLines) {
-      final v = _takeAfterLabel(line, vendorLabelRegex);
+      final v = takeAfterLabel(line, vendorLabelRegex);
       if (v.isNotEmpty && v.length >= 3) {
         vendorName = v;
         break;
@@ -88,7 +88,7 @@ class OcrParser {
     if (vendorName.isEmpty) {
       for (final line in nonEmptyLines.take(30)) {
         final upper = line.toUpperCase();
-        if (_looksLikeCompanyName(upper)) {
+        if (looksLikeCompanyName(upper)) {
           vendorName = line;
           break;
         }
@@ -124,7 +124,7 @@ class OcrParser {
     for (int i = 0; i < nonEmptyLines.length; i++) {
       final line = nonEmptyLines[i];
 
-      final inline = _takeAfterLabel(line, purposeLabelRegex);
+      final inline = takeAfterLabel(line, purposeLabelRegex);
       if (inline.isNotEmpty && inline.length >= 5) {
         purpose = inline;
         break;
@@ -132,12 +132,12 @@ class OcrParser {
 
       // 4.2 Если строка — только "Призначення:" (без текста), берём следующую 1-2 строки
       if (purposeLabelRegex.hasMatch(line) && inline.isEmpty) {
-        final next1 = (i + 1 < nonEmptyLines.length) ? nonEmptyLines[i + 1] : '';
-        final next2 = (i + 2 < nonEmptyLines.length) ? nonEmptyLines[i + 2] : '';
-        final candidate = [next1, next2]
-            .where((s) => s.isNotEmpty)
-            .take(2)
-            .join(' ');
+        final next1 =
+            (i + 1 < nonEmptyLines.length) ? nonEmptyLines[i + 1] : '';
+        final next2 =
+            (i + 2 < nonEmptyLines.length) ? nonEmptyLines[i + 2] : '';
+        final candidate =
+            [next1, next2].where((s) => s.isNotEmpty).take(2).join(' ');
         if (candidate.trim().length >= 5) {
           purpose = candidate.trim();
           break;

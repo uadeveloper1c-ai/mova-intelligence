@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class AppBackground extends StatelessWidget {
@@ -6,92 +5,82 @@ class AppBackground extends StatelessWidget {
 
   const AppBackground({super.key, required this.child});
 
-  static const _base = Color(0xFF122033);
-  static const _baseDeep = Color(0xFF0C1727);
-  static const _soft = Color(0xFF1B2C43);
-
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        const ColoredBox(color: _baseDeep),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                _base,
-                _baseDeep,
-              ],
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [
+                  Color(0xFF111C27),
+                  Color(0xFF172536),
+                  Color(0xFF203247),
+                ]
+              : const [
+                  Color(0xFFF0F4F7),
+                  Color(0xFFEAF2F5),
+                  Color(0xFFE4EEF3),
+                ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -40,
+            right: -20,
+            child: _BlurOrb(
+              size: 170,
+              color: isDark
+                  ? const Color(0xFF3AAFA9).withValues(alpha: 0.16)
+                  : const Color(0xFF63D1C8).withValues(alpha: 0.12),
             ),
           ),
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(-0.85, -0.95),
-              radius: 1.3,
-              colors: [
-                _soft,
-                Color(0x00000000),
-              ],
-              stops: [0.0, 1.0],
+          Positioned(
+            top: 120,
+            left: -30,
+            child: _BlurOrb(
+              size: 140,
+              color: isDark
+                  ? const Color(0xFF58A6FF).withValues(alpha: 0.12)
+                  : const Color(0xFF7FB6FF).withValues(alpha: 0.11),
             ),
           ),
-        ),
-        const Positioned(
-          top: -140,
-          left: -160,
-          child: _GlowBlob(
-            color: Color(0x3822D3EE),
-            size: 390,
-          ),
-        ),
-        const Positioned(
-          bottom: -170,
-          right: -150,
-          child: _GlowBlob(
-            color: Color(0x2A38BDF8),
-            size: 410,
-          ),
-        ),
-        const Positioned(
-          top: 110,
-          right: -160,
-          child: _GlowBlob(
-            color: Color(0x1D10B981),
-            size: 340,
-          ),
-        ),
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-          child: Container(color: Colors.transparent),
-        ),
-        child,
-      ],
+          child,
+        ],
+      ),
     );
   }
 }
 
-class _GlowBlob extends StatelessWidget {
-  final Color color;
+class _BlurOrb extends StatelessWidget {
   final double size;
+  final Color color;
 
-  const _GlowBlob({
-    required this.color,
+  const _BlurOrb({
     required this.size,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color,
-        shape: BoxShape.circle,
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color,
+              blurRadius: size * 0.65,
+              spreadRadius: size * 0.15,
+            ),
+          ],
+        ),
       ),
     );
   }

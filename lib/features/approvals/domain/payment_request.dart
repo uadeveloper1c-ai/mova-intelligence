@@ -1,71 +1,169 @@
-class PaymentAttachment {
-  final String name;
-  final String url;
-
-  const PaymentAttachment({
-    required this.name,
-    required this.url,
-  });
-
-  factory PaymentAttachment.fromJson(Map<String, dynamic> json) {
-    return PaymentAttachment(
-      name: (json['name'] ?? '').toString(),
-      url: (json['url'] ?? '').toString(),
-    );
-  }
-}
-
 class PaymentRequest {
   final String id;
   final String number;
   final DateTime date;
+  final DateTime requestDate;
+  final PaymentOperationType operationType;
+  final String orgCode;
   final String contractorName;
+  final String contractorCode;
   final double amount;
   final String currency;
   final String purpose;
   final PaymentRequestStatus status;
   final String? approverName;
   final String? requesterName;
+  final String requesterUid;
+  final String subdivisionUid;
+  final String subdivisionName;
+  final String statementUid;
+  final String statementName;
+  final String cashboxUid;
+  final String cashboxName;
+  final String taxUid;
+  final String taxName;
   final bool urgent;
   final PaymentForm paymentForm;
-  final PaymentAttachment? attachment;
+  final List<PaymentRequestAttachment> attachments;
 
   const PaymentRequest({
     required this.id,
     required this.number,
     required this.date,
+    required this.requestDate,
+    this.operationType = PaymentOperationType.supplierPayment,
+    this.orgCode = '',
     required this.contractorName,
+    this.contractorCode = '',
     required this.amount,
     required this.currency,
     required this.purpose,
     required this.status,
     this.approverName,
     this.requesterName,
+    this.requesterUid = '',
+    this.subdivisionUid = '',
+    this.subdivisionName = '',
+    this.statementUid = '',
+    this.statementName = '',
+    this.cashboxUid = '',
+    this.cashboxName = '',
+    this.taxUid = '',
+    this.taxName = '',
     this.urgent = false,
     this.paymentForm = PaymentForm.unknown,
-    this.attachment,
+    this.attachments = const [],
   });
 
   factory PaymentRequest.fromJson(Map<String, dynamic> json) {
+    final paymentDate = _parseDate(json['date']);
+
     return PaymentRequest(
       id: (json['id'] ?? '').toString(),
       number: (json['number'] ?? '').toString(),
-      date: _parseDate(json['date']),
+      date: paymentDate,
+      requestDate: _parseDate(
+        json['requestDate'] ??
+            json['request_date'] ??
+            json['createdDate'] ??
+            json['documentDate'] ??
+            json['document_date'] ??
+            json['created_at'] ??
+            json['dateCreated'] ??
+            json['date_created'] ??
+            json['docDate'] ??
+            paymentDate,
+      ),
+      operationType: paymentOperationTypeFromBackend(
+        _firstString(json, const [
+          'operationType',
+          'operation_type',
+          'requestType',
+          'request_type',
+          'paymentType',
+          'payment_type',
+        ]),
+      ),
+      orgCode: _firstString(json, const [
+        'orgCode',
+        'org_code',
+      ]),
       contractorName: (json['contractorName'] ?? '').toString(),
+      contractorCode: _firstString(json, const [
+        'contractorCode',
+        'vendorCode',
+        'edrpou',
+        'edrpouCode',
+        'supplierCode',
+        'ЄДРПОУ',
+        'КодЄДРПОУ',
+      ]),
       amount: _parseDouble(json['amount']),
       currency: ((json['currency'] ?? 'UAH').toString()).toUpperCase(),
       purpose: (json['purpose'] ?? '').toString(),
       status: paymentStatusFromBackend((json['status'] ?? '').toString()),
       approverName: json['approverName']?.toString(),
       requesterName: json['requesterName']?.toString(),
+      requesterUid: _firstString(json, const [
+        'requesterUid',
+        'requester_uid',
+        'authorUid',
+        'author_uid',
+        'userUid',
+        'createdByUid',
+      ]),
+      subdivisionUid: _firstString(json, const [
+        'subdivisionUid',
+        'subdivision_uid',
+      ]),
+      subdivisionName: _firstString(json, const [
+        'subdivisionName',
+        'subdivision_name',
+        'name_subdivision',
+        'subdivision',
+      ]),
+      statementUid: _firstString(json, const [
+        'statementUid',
+        'statement_uid',
+      ]),
+      statementName: _firstString(json, const [
+        'statementName',
+        'statement_name',
+      ]),
+      cashboxUid: _firstString(json, const [
+        'cashboxUid',
+        'cashbox_uid',
+      ]),
+      cashboxName: _firstString(json, const [
+        'cashboxName',
+        'cashbox_name',
+      ]),
+      taxUid: _firstString(json, const [
+        'taxUid',
+        'tax_uid',
+      ]),
+      taxName: _firstString(json, const [
+        'taxName',
+        'tax_name',
+      ]),
       urgent: _parseBool(json['urgent']),
       paymentForm: paymentFormFromBackend(json['paymentForm']?.toString()),
-      attachment: json['attachment'] is Map
-          ? PaymentAttachment.fromJson(
-        Map<String, dynamic>.from(json['attachment'] as Map),
-      )
-          : null,
+      attachments: PaymentRequestAttachment.listFromJson(
+        json['attachments'] ?? json['attachment'],
+      ),
     );
+  }
+
+  static String _firstString(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value == null) continue;
+
+      final text = value.toString().trim();
+      if (text.isNotEmpty) return text;
+    }
+
+    return '';
   }
 
   static DateTime _parseDate(dynamic value) {
@@ -101,10 +199,70 @@ class PaymentRequest {
   }
 }
 
+class PaymentRequestAttachment {
+  final String uid;
+  final String name;
+  final String? url;
+
+  const PaymentRequestAttachment({
+    required this.uid,
+    required this.name,
+    this.url,
+  });
+
+  static PaymentRequestAttachment? fromJson(dynamic value) {
+    if (value is! Map) return null;
+
+    final map = Map<String, dynamic>.from(value);
+    final uid = PaymentRequest._firstString(map, const [
+      'uid',
+      'file_uid',
+      'fileUid',
+      'attachment_uid',
+      'attachmentUid',
+      'id',
+    ]);
+    final name = PaymentRequest._firstString(map, const [
+      'name',
+      'file_name',
+      'fileName',
+      'filename',
+    ]);
+    final urlRaw = (map['url'] ?? map['download_url'] ?? map['downloadUrl'])
+        ?.toString()
+        .trim();
+
+    if (uid.isEmpty && name.isEmpty && (urlRaw == null || urlRaw.isEmpty)) {
+      return null;
+    }
+
+    return PaymentRequestAttachment(
+      uid: uid,
+      name: name.isEmpty ? 'Вкладення' : name,
+      url: (urlRaw == null || urlRaw.isEmpty) ? null : urlRaw,
+    );
+  }
+
+  static List<PaymentRequestAttachment> listFromJson(dynamic value) {
+    if (value is List) {
+      return value
+          .map(fromJson)
+          .whereType<PaymentRequestAttachment>()
+          .toList(growable: false);
+    }
+
+    final single = fromJson(value);
+    if (single == null) return const [];
+    return [single];
+  }
+}
+
 enum PaymentRequestStatus {
+  preliminary,
   draft,
   pending,
   approvedByDepartmentHead,
+  approvedByFinanceDirector,
   approved,
   rejected,
   topaid,
@@ -117,21 +275,50 @@ enum PaymentForm {
   unknown,
 }
 
+enum PaymentOperationType {
+  supplierPayment,
+  otherExpenses,
+  salaryPayment,
+  taxPayment,
+}
+
 PaymentRequestStatus paymentStatusFromBackend(String value) {
-  switch (value.trim()) {
-    case 'Draft':
+  switch (value.trim().toLowerCase()) {
+    case 'preliminary':
+    case 'предварительная':
+    case 'попередня':
+      return PaymentRequestStatus.preliminary;
+    case 'draft':
       return PaymentRequestStatus.draft;
-    case 'Pending':
+    case 'pending':
+    case 'несогласована':
+    case 'несогласованная':
+    case 'не согласована':
+    case 'не согласованная':
+    case 'непогоджена':
+    case 'не погоджена':
       return PaymentRequestStatus.pending;
-    case 'ApprovedByDepartmentHead':
+    case 'approvedbydepartmenthead':
+    case 'согласованаруководителемподразделения':
+    case 'погодженокерівником':
       return PaymentRequestStatus.approvedByDepartmentHead;
-    case 'Approved':
+    case 'approvedbyfinancedirector':
+    case 'согласованафинансовымдиректором':
+    case 'погодженофінансовимдиректором':
+      return PaymentRequestStatus.approvedByFinanceDirector;
+    case 'approved':
       return PaymentRequestStatus.approved;
-    case 'Rejected':
+    case 'rejected':
+    case 'rejectedbyauthor':
+    case 'відхилено':
+    case 'отклонена':
+    case 'відхилена':
+    case 'отклонено':
       return PaymentRequestStatus.rejected;
-    case 'ToPaid':
+    case 'topaid':
       return PaymentRequestStatus.topaid;
-    case 'Paid':
+    case 'paid':
+    case 'оплачено':
       return PaymentRequestStatus.paid;
     default:
       return PaymentRequestStatus.pending;
@@ -140,12 +327,16 @@ PaymentRequestStatus paymentStatusFromBackend(String value) {
 
 String paymentStatusToBackend(PaymentRequestStatus status) {
   switch (status) {
+    case PaymentRequestStatus.preliminary:
+      return 'Preliminary';
     case PaymentRequestStatus.draft:
       return 'Draft';
     case PaymentRequestStatus.pending:
       return 'Pending';
     case PaymentRequestStatus.approvedByDepartmentHead:
       return 'ApprovedByDepartmentHead';
+    case PaymentRequestStatus.approvedByFinanceDirector:
+      return 'ApprovedByFinanceDirector';
     case PaymentRequestStatus.approved:
       return 'Approved';
     case PaymentRequestStatus.rejected:
@@ -159,12 +350,16 @@ String paymentStatusToBackend(PaymentRequestStatus status) {
 
 String paymentStatusHuman(PaymentRequestStatus status) {
   switch (status) {
+    case PaymentRequestStatus.preliminary:
+      return 'Попередня';
     case PaymentRequestStatus.draft:
       return 'Чернетка';
     case PaymentRequestStatus.pending:
       return 'На погодженні';
     case PaymentRequestStatus.approvedByDepartmentHead:
       return 'Погоджено керівником';
+    case PaymentRequestStatus.approvedByFinanceDirector:
+      return 'Погоджено CFO';
     case PaymentRequestStatus.approved:
       return 'Погоджено';
     case PaymentRequestStatus.rejected:
@@ -186,5 +381,63 @@ PaymentForm paymentFormFromBackend(String? value) {
       return PaymentForm.cashless;
     default:
       return PaymentForm.unknown;
+  }
+}
+
+PaymentOperationType paymentOperationTypeFromBackend(String? value) {
+  switch ((value ?? '').trim().toLowerCase()) {
+    case 'supplier_payment':
+    case 'supplierpayment':
+    case 'supplier':
+    case 'оплатапостачальнику':
+    case 'оплатапоставщику':
+      return PaymentOperationType.supplierPayment;
+    case 'other_expenses':
+    case 'otherexpenses':
+    case 'other':
+    case 'іншівитрати':
+    case 'иншиерасходы':
+    case 'прочиерасходы':
+      return PaymentOperationType.otherExpenses;
+    case 'salary_payment':
+    case 'salarypayment':
+    case 'salary':
+    case 'виплатазарплати':
+    case 'выплатазарплаты':
+      return PaymentOperationType.salaryPayment;
+    case 'tax_payment':
+    case 'taxpayment':
+    case 'tax':
+    case 'уплатаподатків':
+    case 'уплатаналогов':
+      return PaymentOperationType.taxPayment;
+    default:
+      return PaymentOperationType.supplierPayment;
+  }
+}
+
+String paymentOperationTypeToBackend(PaymentOperationType type) {
+  switch (type) {
+    case PaymentOperationType.supplierPayment:
+      return 'supplier_payment';
+    case PaymentOperationType.otherExpenses:
+      return 'other_expenses';
+    case PaymentOperationType.salaryPayment:
+      return 'salary_payment';
+    case PaymentOperationType.taxPayment:
+      return 'tax_payment';
+  }
+}
+
+String paymentOperationTypeHuman(PaymentOperationType type) {
+  switch (type) {
+    case PaymentOperationType.supplierPayment:
+      return 'Оплата постачальнику';
+    case PaymentOperationType.otherExpenses:
+      return 'Інші витрати';
+    case PaymentOperationType.salaryPayment:
+      return 'Виплата зарплати';
+    case PaymentOperationType.taxPayment:
+      return 'Уплата податків';
   }
 }

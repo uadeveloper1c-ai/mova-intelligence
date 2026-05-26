@@ -17,9 +17,14 @@ import '../../features/reports/presentation/reports_page.dart';
 import '../../features/approvals/presentation/payment_request_details_page.dart';
 import '../../features/approvals/presentation/new_request_page.dart';
 
-import '../../features/menu/presentation/menu_page.dart';
 import '../../features/events/presentation/events_page.dart';
 import '../../features/invoices/presentation/pages/recognize_page.dart';
+
+import '../../features/work/presentation/work_page.dart';
+import '../../features/modules/presentation/modules_page.dart';
+import '../../features/messages/presentation/messages_page.dart';
+import '../../features/notifications/presentation/notifications_page.dart';
+import '../../features/profile/presentation/profile_page.dart';
 
 GoRouter createRouter(AuthProvider auth) {
   return GoRouter(
@@ -46,18 +51,15 @@ GoRouter createRouter(AuthProvider auth) {
       ),
       GoRoute(
         path: '/home',
-        builder: (context, state) =>
-        const AppScaffold(child: HomePage()),
+        builder: (context, state) => const AppScaffold(child: HomePage()),
       ),
       GoRoute(
         path: '/invoices',
-        builder: (context, state) =>
-        const AppScaffold(child: InvoicesPage()),
+        builder: (context, state) => const AppScaffold(child: InvoicesPage()),
       ),
       GoRoute(
         path: '/events',
-        builder: (context, state) =>
-        const AppScaffold(child: EventsPage()),
+        builder: (context, state) => const AppScaffold(child: EventsPage()),
       ),
       GoRoute(
         path: '/invoices/recognize',
@@ -65,13 +67,12 @@ GoRouter createRouter(AuthProvider auth) {
       ),
       GoRoute(
         path: '/approvals',
-        builder: (context, state) =>
-        const AppScaffold(child: ApprovalsPage()),
+        builder: (context, state) => const AppScaffold(child: ApprovalsPage()),
       ),
 
       GoRoute(
         path: '/menu',
-        builder: (context, state) => const AppScaffold(child: MenuPage()),
+        builder: (context, state) => const AppScaffold(child: ProfilePage()),
       ),
 
       // 🔹 НОВАЯ ЗАЯВКА
@@ -83,16 +84,49 @@ GoRouter createRouter(AuthProvider auth) {
         ),
       ),
 
+      GoRoute(
+        path: '/work',
+        builder: (context, state) => const AppScaffold(child: WorkPage()),
+      ),
+
+      GoRoute(
+        path: '/modules',
+        builder: (context, state) => const AppScaffold(child: ModulesPage()),
+      ),
+      GoRoute(
+        path: '/modules/profile',
+        builder: (context, state) => const AppScaffold(child: ProfilePage()),
+      ),
+      GoRoute(
+        path: '/modules/communications/new',
+        builder: (context, state) =>
+            const AppScaffold(child: NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/modules/communications',
+        builder: (context, state) => const AppScaffold(child: MessagesPage()),
+      ),
+      GoRoute(
+        path: '/modules/notifications',
+        builder: (context, state) =>
+            const AppScaffold(child: NotificationsPage()),
+      ),
+      GoRoute(
+        path: '/modules/messages',
+        builder: (context, state) => const AppScaffold(child: MessagesPage()),
+      ),
+
       // 🔹 ДЕТАЛИ ЗАЯВКИ ПО UID
       GoRoute(
         path: '/approvals/request/:uid',
         name: 'approvalRequestDetails',
         builder: (context, state) {
           final uid = state.pathParameters['uid']!;
+          final allowActions = state.uri.queryParameters['actions'] == '1';
           return AppScaffold(
             child: PaymentRequestDetailsPage(
               uid: uid,
-              allowActions: true,
+              allowActions: allowActions,
             ),
           );
         },
@@ -100,13 +134,11 @@ GoRouter createRouter(AuthProvider auth) {
 
       GoRoute(
         path: '/tasks',
-        builder: (context, state) =>
-        const AppScaffold(child: TasksPage()),
+        builder: (context, state) => const AppScaffold(child: TasksPage()),
       ),
       GoRoute(
         path: '/reports',
-        builder: (context, state) =>
-        const AppScaffold(child: ReportsPage()),
+        builder: (context, state) => const AppScaffold(child: ReportsPage()),
       ),
     ],
   );

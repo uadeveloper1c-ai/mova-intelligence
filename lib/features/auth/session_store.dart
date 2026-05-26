@@ -39,9 +39,7 @@ class OrgAccess {
 
   factory OrgAccess.fromJson(Map<String, dynamic> json) {
     final methodsRaw =
-        json['СпособыДоставки'] ??
-            json['deliveryMethods'] ??
-            const [];
+        json['СпособыДоставки'] ?? json['deliveryMethods'] ?? const [];
 
     final List<DeliveryMethod> methods = [];
 
@@ -58,15 +56,10 @@ class OrgAccess {
     }
 
     return OrgAccess(
-      code: json['Код']?.toString() ??
-          json['code']?.toString() ??
-          '',
-      name: json['Наименование']?.toString() ??
-          json['name']?.toString() ??
-          '',
+      code: json['Код']?.toString() ?? json['code']?.toString() ?? '',
+      name: json['Наименование']?.toString() ?? json['name']?.toString() ?? '',
       deliveryMethods: methods,
-      defaultDeliveryMethod:
-      json['ОсновнойСпособДоставки']?.toString() ??
+      defaultDeliveryMethod: json['ОсновнойСпособДоставки']?.toString() ??
           json['defaultDeliveryMethod']?.toString(),
     );
   }
@@ -82,13 +75,11 @@ class OrgAccess {
   }
 }
 
-
-
 class SubdivisionAccess {
   final String uid;
   final String name;
 
-  SubdivisionAccess({
+  const SubdivisionAccess({
     required this.uid,
     required this.name,
   });
@@ -97,11 +88,9 @@ class SubdivisionAccess {
     return SubdivisionAccess(
       uid: json['Ссылка']?.toString() ??
           json['uid']?.toString() ??
-          json['id']?.toString() ??
+          json['Uid']?.toString() ??
           '',
-      name: json['Наименование']?.toString() ??
-          json['name']?.toString() ??
-          '',
+      name: json['Наименование']?.toString() ?? json['name']?.toString() ?? '',
     );
   }
 
@@ -119,6 +108,7 @@ class SessionData {
   final bool canApprovePayments;
   final List<OrgAccess> orgs;
   final List<SubdivisionAccess> subdivisions;
+  final String? defaultSubdivisionUid;
 
   /// UID елемента довідника "ПользователиМобильногоПриложения" (з /me)
   /// Може бути null для старих сесій або якщо бекенд його не віддав.
@@ -130,6 +120,7 @@ class SessionData {
     required this.canApprovePayments,
     required this.orgs,
     this.subdivisions = const [],
+    this.defaultSubdivisionUid,
     this.userUid,
   });
 
@@ -140,6 +131,8 @@ class SessionData {
       'canApprovePayments': canApprovePayments,
       'orgs': orgs.map((o) => o.toJson()).toList(),
       'subdivisions': subdivisions.map((s) => s.toJson()).toList(),
+      if (defaultSubdivisionUid != null)
+        'defaultSubdivisionUid': defaultSubdivisionUid,
       if (userUid != null) 'userUid': userUid,
     };
   }
@@ -170,7 +163,6 @@ class SessionStore {
     final orgs = orgsRaw
         .map((e) => OrgAccess.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-
     final subdivisionsRaw = map['subdivisions'] as List<dynamic>? ?? const [];
     final subdivisions = subdivisionsRaw
         .map((e) => SubdivisionAccess.fromJson(Map<String, dynamic>.from(e)))
@@ -182,6 +174,7 @@ class SessionStore {
       canApprovePayments: map['canApprovePayments'] == true,
       orgs: orgs,
       subdivisions: subdivisions,
+      defaultSubdivisionUid: map['defaultSubdivisionUid']?.toString(),
       userUid: map['userUid']?.toString(),
     );
   }

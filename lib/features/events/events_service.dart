@@ -12,12 +12,10 @@ class EventsService {
     int limit = 50,
     bool unreadOnly = false,
   }) async {
-    // ✅ твой эндпоинт
-    final endpoint =
-        '/events/get_list?limit=$limit&unreadOnly=${unreadOnly ? 1 : 0}';
+    final endpoint = '/events?limit=$limit&unreadOnly=${unreadOnly ? 1 : 0}';
 
     final http.Response r =
-    await _apiClient.sendAuthorizedRequest('GET', endpoint);
+        await _apiClient.sendAuthorizedRequest('GET', endpoint);
 
     if (r.statusCode != 200) {
       throw Exception('HTTP ${r.statusCode}: ${r.body}');
@@ -30,16 +28,12 @@ class EventsService {
       throw Exception('Очікувався список подій, отримав: $data');
     }
 
-    return data
-        .cast<Map<String, dynamic>>()
-        .map(EventItem.fromJson)
-        .toList();
+    return data.cast<Map<String, dynamic>>().map(EventItem.fromJson).toList();
   }
 
   Future<void> markRead(List<String> ids) async {
     if (ids.isEmpty) return;
 
-    // ✅ твой эндпоинт
     final r = await _apiClient.sendAuthorizedRequest(
       'POST',
       '/events/mark_read',
