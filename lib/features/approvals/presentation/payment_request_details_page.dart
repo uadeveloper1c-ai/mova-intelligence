@@ -33,12 +33,14 @@ class PaymentRequestDetailsPage extends StatefulWidget {
 class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
   late Future<PaymentRequest> _future;
   bool _busy = false;
+  late bool _actionsEnabled;
   String? _openingAttachmentUid;
   Map<String, String> _orgNamesByCode = const {};
 
   @override
   void initState() {
     super.initState();
+    _actionsEnabled = widget.allowActions;
     _future = _load();
     _loadOrgNames();
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -238,6 +240,15 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
     }
   }
 
+  String _packageItemTitle(PaymentRequestPackageItem item) {
+    if (item.isMain) return 'Основна виплата';
+
+    final taxName = item.taxName.trim();
+    if (taxName.isNotEmpty) return taxName;
+
+    return paymentOperationTypeHuman(item.operationType);
+  }
+
   bool _isEditableStatus(PaymentRequestStatus status) {
     return status == PaymentRequestStatus.preliminary ||
         status == PaymentRequestStatus.pending;
@@ -346,6 +357,7 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
 
       setState(() {
         _future = Future.value(updated);
+        _actionsEnabled = false;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -459,6 +471,159 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
     );
   }
 
+  Widget _paymentPackageSection({
+    required BuildContext context,
+    required PaymentRequest request,
+    required Color sub,
+    required Color border,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final items = request.paymentPackageItems;
+    final total = request.paymentPackageTotalAmount > 0
+        ? request.paymentPackageTotalAmount
+        : items.fold<double>(0, (sum, item) => sum + item.amount);
+
+    return _section(
+      context: context,
+      title: 'Пакет платежів',
+      child: Column(
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            _paymentPackageTile(
+              context: context,
+              item: items[i],
+              sub: sub,
+              border: border,
+            ),
+            if (i != items.length - 1) const SizedBox(height: 10),
+          ],
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            decoration: BoxDecoration(
+              color: cs.primary.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.summarize_rounded, color: cs.primary, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Разом до оплати',
+                    style: TextStyle(
+                      color: cs.onSurface,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                Text(
+                  _fmtAmount(total, request.currency),
+                  style: TextStyle(
+                    color: cs.primary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _paymentPackageTile({
+    required BuildContext context,
+    required PaymentRequestPackageItem item,
+    required Color sub,
+    required Color border,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+    final title = _packageItemTitle(item);
+    final contractor = item.contractorName.trim();
+    final purpose = item.purpose.trim();
+    final subtitle = [
+      if (contractor.isNotEmpty) contractor,
+      if (purpose.isNotEmpty) purpose,
+    ].join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: item.isMain
+                  ? cs.primary.withValues(alpha: 0.11)
+                  : const Color(0xFF0F766E).withValues(alpha: 0.11),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              item.isMain
+                  ? Icons.account_balance_wallet_rounded
+                  : Icons.receipt_long_rounded,
+              color: item.isMain ? cs.primary : const Color(0xFF0F766E),
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    height: 1.2,
+                  ),
+                ),
+                if (subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: sub,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            _fmtAmount(item.amount, item.currency),
+            style: TextStyle(
+              color: cs.onSurface,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildLoaded(PaymentRequest r) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -473,8 +638,9 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
     final formLabel = paymentFormHuman(r.paymentForm);
     final operationTypeLabel = paymentOperationTypeHuman(r.operationType);
     final attachments = r.attachments;
+    final packageItems = r.paymentPackageItems;
 
-    final canAct = widget.allowActions &&
+    final canAct = _actionsEnabled &&
         (r.status == PaymentRequestStatus.pending ||
             r.status == PaymentRequestStatus.approvedByDepartmentHead ||
             r.status == PaymentRequestStatus.approvedByFinanceDirector);
@@ -645,6 +811,15 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
             ),
           ),
           const SizedBox(height: 12),
+          if (packageItems.isNotEmpty) ...[
+            _paymentPackageSection(
+              context: context,
+              request: r,
+              sub: sub,
+              border: border,
+            ),
+            const SizedBox(height: 12),
+          ],
           _section(
             context: context,
             title: 'Призначення',

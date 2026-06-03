@@ -180,6 +180,20 @@ class _NewRequestPageState extends State<NewRequestPage> {
     return value.toStringAsFixed(2);
   }
 
+  String _formatAmountLabel(double value) {
+    final rounded =
+        value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    final parts = rounded.split('.');
+    final chars = parts.first.split('').reversed.toList();
+    final grouped = <String>[];
+    for (var i = 0; i < chars.length; i++) {
+      if (i > 0 && i % 3 == 0) grouped.add(' ');
+      grouped.add(chars[i]);
+    }
+    final whole = grouped.reversed.join();
+    return parts.length > 1 ? '$whole.${parts.last}' : whole;
+  }
+
   String? _tryString(dynamic Function() getter) {
     try {
       final v = getter();
@@ -496,7 +510,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
     }
   }
 
-  void _applyStatementDefaults() {
+  void _applyStatementDefaults({bool forceAmount = false}) {
     if (!_isSalaryPayment) return;
 
     final selected =
@@ -510,8 +524,11 @@ class _NewRequestPageState extends State<NewRequestPage> {
       });
     }
 
-    if (_amountCtrl.text.trim().isEmpty && selected.amount > 0) {
-      _amountCtrl.text = _formatAmountForInput(selected.amount);
+    if ((forceAmount || _amountCtrl.text.trim().isEmpty) &&
+        selected.amount > 0) {
+      setState(() {
+        _amountCtrl.text = _formatAmountForInput(selected.amount);
+      });
     }
   }
 
@@ -1464,9 +1481,13 @@ class _NewRequestPageState extends State<NewRequestPage> {
         .map(
           (s) => DropdownMenuItem<String>(
             value: s.uid,
-            child: Text(
-              s.name,
-              style: TextStyle(color: ui.text),
+            child: _StatementDropdownLabel(
+              name: s.name,
+              amount: s.amount,
+              amountText:
+                  s.amount > 0 ? '${_formatAmountLabel(s.amount)} ₴' : '',
+              textColor: ui.text,
+              subColor: ui.sub,
             ),
           ),
         )
@@ -1730,7 +1751,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
                                         dropdownColor: ui.panel,
                                         onChanged: (v) {
                                           setState(() => _statementUid = v);
-                                          _applyStatementDefaults();
+                                          _applyStatementDefaults(
+                                            forceAmount: true,
+                                          );
                                         },
                                         validator: (v) => _isSalaryPayment &&
                                                 (v == null || v.isEmpty)
@@ -3514,6 +3537,55 @@ class _ContractorSearchSheetState extends State<_ContractorSearchSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _StatementDropdownLabel extends StatelessWidget {
+  final String name;
+  final double amount;
+  final String amountText;
+  final Color textColor;
+  final Color subColor;
+
+  const _StatementDropdownLabel({
+    required this.name,
+    required this.amount,
+    required this.amountText,
+    required this.textColor,
+    required this.subColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasAmount = amount > 0 && amountText.trim().isNotEmpty;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: textColor,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
+            ),
+          ),
+        ),
+        if (hasAmount) ...[
+          const SizedBox(width: 10),
+          Text(
+            amountText,
+            style: TextStyle(
+              color: subColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

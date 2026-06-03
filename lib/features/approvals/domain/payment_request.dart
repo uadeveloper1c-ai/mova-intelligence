@@ -25,6 +25,8 @@ class PaymentRequest {
   final bool urgent;
   final PaymentForm paymentForm;
   final List<PaymentRequestAttachment> attachments;
+  final List<PaymentRequestPackageItem> paymentPackageItems;
+  final double paymentPackageTotalAmount;
 
   const PaymentRequest({
     required this.id,
@@ -53,6 +55,8 @@ class PaymentRequest {
     this.urgent = false,
     this.paymentForm = PaymentForm.unknown,
     this.attachments = const [],
+    this.paymentPackageItems = const [],
+    this.paymentPackageTotalAmount = 0,
   });
 
   factory PaymentRequest.fromJson(Map<String, dynamic> json) {
@@ -151,6 +155,18 @@ class PaymentRequest {
       attachments: PaymentRequestAttachment.listFromJson(
         json['attachments'] ?? json['attachment'],
       ),
+      paymentPackageItems: PaymentRequestPackageItem.listFromJson(
+        json['paymentPackageItems'] ??
+            json['payment_package_items'] ??
+            json['packageItems'] ??
+            json['package_items'],
+      ),
+      paymentPackageTotalAmount: _parseDouble(
+        json['paymentPackageTotalAmount'] ??
+            json['payment_package_total_amount'] ??
+            json['packageTotalAmount'] ??
+            json['package_total_amount'],
+      ),
     );
   }
 
@@ -196,6 +212,67 @@ class PaymentRequest {
 
     final s = value.toString().toLowerCase().trim();
     return s == 'true' || s == '1' || s == 'yes';
+  }
+}
+
+class PaymentRequestPackageItem {
+  final String id;
+  final String number;
+  final bool isMain;
+  final PaymentOperationType operationType;
+  final PaymentRequestStatus status;
+  final double amount;
+  final String currency;
+  final String contractorName;
+  final String purpose;
+  final String taxName;
+
+  const PaymentRequestPackageItem({
+    required this.id,
+    required this.number,
+    required this.isMain,
+    required this.operationType,
+    required this.status,
+    required this.amount,
+    required this.currency,
+    required this.contractorName,
+    required this.purpose,
+    required this.taxName,
+  });
+
+  static PaymentRequestPackageItem? fromJson(dynamic value) {
+    if (value is! Map) return null;
+
+    final map = Map<String, dynamic>.from(value);
+    return PaymentRequestPackageItem(
+      id: (map['id'] ?? '').toString(),
+      number: (map['number'] ?? '').toString(),
+      isMain: PaymentRequest._parseBool(map['isMain'] ?? map['is_main']),
+      operationType: paymentOperationTypeFromBackend(
+        PaymentRequest._firstString(map, const [
+          'operationType',
+          'operation_type',
+        ]),
+      ),
+      status: paymentStatusFromBackend((map['status'] ?? '').toString()),
+      amount: PaymentRequest._parseDouble(map['amount']),
+      currency: ((map['currency'] ?? 'UAH').toString()).toUpperCase(),
+      contractorName: (map['contractorName'] ?? '').toString(),
+      purpose: (map['purpose'] ?? '').toString(),
+      taxName: PaymentRequest._firstString(map, const [
+        'taxName',
+        'tax_name',
+      ]),
+    );
+  }
+
+  static List<PaymentRequestPackageItem> listFromJson(dynamic value) {
+    if (value is! List) return const [];
+
+    return value
+        .map(fromJson)
+        .whereType<PaymentRequestPackageItem>()
+        .toList(growable: false);
   }
 }
 

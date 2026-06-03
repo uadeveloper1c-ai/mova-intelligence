@@ -81,9 +81,14 @@ class _WorkPageState extends State<WorkPage> {
   Future<List<PaymentRequest>> _loadRequests() async {
     final service = context.read<ApprovalsService>();
 
-    final my = await service.getMyRequests();
-    final incoming = await service.getIncomingRequests();
-    final department = await service.getDepartmentRequests();
+    final lists = await Future.wait<List<PaymentRequest>>([
+      service.getMyRequests(),
+      service.getIncomingRequests(),
+      service.getDepartmentRequests(),
+    ]);
+    final my = lists[0];
+    final incoming = lists[1];
+    final department = lists[2];
     _incomingRequestIds = incoming.map((r) => r.id).toSet();
 
     final byId = <String, PaymentRequest>{};
@@ -244,7 +249,8 @@ class _WorkPageState extends State<WorkPage> {
         59,
       );
       items = items
-          .where((r) => !r.date.isBefore(start) && !r.date.isAfter(end))
+          .where((r) =>
+              !r.requestDate.isBefore(start) && !r.requestDate.isAfter(end))
           .toList();
     }
 
@@ -872,50 +878,99 @@ class _WorkPageState extends State<WorkPage> {
                       ),
                     ],
                   )
-                : ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-                    children: [
-                      _SectionSelector(
-                        title: _tabLabel(_tab),
-                        count: _tabCount(_tab, allApprovals),
-                        onTap: () => _openSectionPicker(allApprovals),
-                      ),
-                      const SizedBox(height: 10),
-                      if (_tab == WorkTab.approvals) ...[
-                        _ApprovalFiltersPanel(
-                          status: _statusShort,
-                          period: _periodShort,
-                          org: _orgShort,
-                          contractor: _contractorShort,
-                          orgTooltip: _orgTooltip,
-                          periodTooltip: _rangeLabel,
-                          statusAccent: _statusFilter == null
-                              ? null
-                              : _statusColor(_statusFilter!),
-                          statusBg: _statusBg(_statusFilter, isDark),
-                          hasFilters: _hasAnyApprovalFilter,
-                          showOrgFilter: _orgs.length > 1,
-                          onStatus: _pickStatus,
-                          onPeriod: _pickRange,
-                          onOrg: _pickOrg,
-                          onContractor: _pickContractor,
-                          onClear: _clearApprovalFilters,
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      _buildBody(
-                        cs: cs,
-                        border: border,
-                        isDark: isDark,
-                        snapshot: snap,
-                        approvals: approvals,
-                      ),
-                    ],
+                : _buildMobileScroll(
+                    cs: cs,
+                    border: border,
+                    isDark: isDark,
+                    snapshot: snap,
+                    allApprovals: allApprovals,
+                    approvals: approvals,
                   ),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMobileScroll({
+    required ColorScheme cs,
+    required Color border,
+    required bool isDark,
+    required AsyncSnapshot<List<PaymentRequest>> snapshot,
+    required List<PaymentRequest> allApprovals,
+    required List<PaymentRequest> approvals,
+  }) {
+    final showApprovalList = _tab == WorkTab.approvals &&
+        snapshot.connectionState == ConnectionState.done &&
+        !snapshot.hasError &&
+        approvals.isNotEmpty;
+
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          sliver: SliverToBoxAdapter(
+            child: Column(
+              children: [
+                _SectionSelector(
+                  title: _tabLabel(_tab),
+                  count: _tabCount(_tab, allApprovals),
+                  onTap: () => _openSectionPicker(allApprovals),
+                ),
+                const SizedBox(height: 10),
+                if (_tab == WorkTab.approvals) ...[
+                  _ApprovalFiltersPanel(
+                    status: _statusShort,
+                    period: _periodShort,
+                    org: _orgShort,
+                    contractor: _contractorShort,
+                    orgTooltip: _orgTooltip,
+                    periodTooltip: _rangeLabel,
+                    statusAccent: _statusFilter == null
+                        ? null
+                        : _statusColor(_statusFilter!),
+                    statusBg: _statusBg(_statusFilter, isDark),
+                    hasFilters: _hasAnyApprovalFilter,
+                    showOrgFilter: _orgs.length > 1,
+                    onStatus: _pickStatus,
+                    onPeriod: _pickRange,
+                    onOrg: _pickOrg,
+                    onContractor: _pickContractor,
+                    onClear: _clearApprovalFilters,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ],
+            ),
+          ),
+        ),
+        if (showApprovalList)
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            sliver: SliverList.builder(
+              itemCount: approvals.length,
+              itemBuilder: (context, index) => _buildApprovalCardItem(
+                approvals[index],
+                border: border,
+                isDark: isDark,
+              ),
+            ),
+          )
+        else
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+            sliver: SliverToBoxAdapter(
+              child: _buildBody(
+                cs: cs,
+                border: border,
+                isDark: isDark,
+                snapshot: snapshot,
+                approvals: approvals,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -1051,43 +1106,48 @@ class _WorkPageState extends State<WorkPage> {
 
     return Column(
       children: approvals
-          .map(
-            (r) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: _ApprovalCard(
-                contractor: r.contractorName.trim().isEmpty
-                    ? '—'
-                    : r.contractorName.trim(),
-                org: _orgLabelForRequest(r),
-                requesterName: r.requesterName?.trim() ?? '',
-                subdivisionName: r.subdivisionName.trim(),
-                showRequesterMeta: !_isCurrentUserAuthor(r),
-                operationType: paymentOperationTypeHuman(r.operationType),
-                requestDate: _formatDate(r.requestDate),
-                purpose: r.purpose.trim(),
-                amount: _formatAmount(r.amount, r.currency),
-                date: _formatDate(r.date),
-                paymentForm: _paymentFormText(r.paymentForm),
-                statusText: paymentStatusHuman(r.status),
-                statusUi: _statusUi(r.status, isDark),
-                border: border,
-                isDark: isDark,
-                onLongPress: () => _showRequestMenu(r),
-                onTap: () async {
-                  await context.pushNamed(
-                    'approvalRequestDetails',
-                    pathParameters: {'uid': r.id},
-                    queryParameters: {
-                      if (_incomingRequestIds.contains(r.id)) 'actions': '1',
-                    },
-                  );
-                  if (!mounted) return;
-                  await _refresh();
-                },
-              ),
-            ),
-          )
+          .map((r) => _buildApprovalCardItem(r, border: border, isDark: isDark))
           .toList(),
+    );
+  }
+
+  Widget _buildApprovalCardItem(
+    PaymentRequest r, {
+    required Color border,
+    required bool isDark,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _ApprovalCard(
+        contractor:
+            r.contractorName.trim().isEmpty ? '—' : r.contractorName.trim(),
+        org: _orgLabelForRequest(r),
+        requesterName: r.requesterName?.trim() ?? '',
+        subdivisionName: r.subdivisionName.trim(),
+        showRequesterMeta: !_isCurrentUserAuthor(r),
+        operationType: paymentOperationTypeHuman(r.operationType),
+        requestDate: _formatDate(r.requestDate),
+        purpose: r.purpose.trim(),
+        amount: _formatAmount(r.amount, r.currency),
+        date: _formatDate(r.date),
+        paymentForm: _paymentFormText(r.paymentForm),
+        statusText: paymentStatusHuman(r.status),
+        statusUi: _statusUi(r.status, isDark),
+        border: border,
+        isDark: isDark,
+        onLongPress: () => _showRequestMenu(r),
+        onTap: () async {
+          await context.pushNamed(
+            'approvalRequestDetails',
+            pathParameters: {'uid': r.id},
+            queryParameters: {
+              if (_incomingRequestIds.contains(r.id)) 'actions': '1',
+            },
+          );
+          if (!mounted) return;
+          await _refresh();
+        },
+      ),
     );
   }
 }
