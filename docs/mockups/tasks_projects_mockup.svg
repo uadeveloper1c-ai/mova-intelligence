@@ -1,0 +1,235 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <style>
+      .bg { fill: #eaf2f5; }
+      .web-bg { fill: #0f1e2b; }
+      .web-panel { fill: #152839; stroke: #2f4e63; stroke-width: 1; }
+      .web-panel-2 { fill: #102231; stroke: #2f4e63; stroke-width: 1; }
+      .web-card { fill: #193043; stroke: #31566b; stroke-width: 1; }
+      .mobile-bg { fill: #f4f8f9; }
+      .mobile-card { fill: #ffffff; stroke: #d9e6ea; stroke-width: 1.2; }
+      .mobile-soft { fill: #e7f4f3; stroke: #b9dddd; stroke-width: 1; }
+      .teal { fill: #2dc7b8; }
+      .teal-dark { fill: #159a90; }
+      .text-web { fill: #edf7fa; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .muted-web { fill: #9fb5c4; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .text-dark { fill: #243140; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .muted-dark { fill: #728091; font-family: Inter, Segoe UI, Arial, sans-serif; }
+      .small { font-size: 15px; }
+      .xs { font-size: 12px; }
+      .h1 { font-size: 30px; font-weight: 800; }
+      .h2 { font-size: 21px; font-weight: 800; }
+      .h3 { font-size: 17px; font-weight: 800; }
+      .bold { font-weight: 800; }
+      .medium { font-weight: 650; }
+      .shadow { filter: drop-shadow(0 14px 24px rgba(16, 37, 52, .14)); }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="980"/>
+  <text x="48" y="52" class="text-dark h1">MOVA Tasks / Projects v1.5</text>
+  <text x="48" y="82" class="muted-dark small">Рабочий визуал: web для управления, mobile для ежедневного выполнения</text>
+
+  <!-- WEB APP -->
+  <g transform="translate(48,115)">
+    <rect class="web-bg shadow" width="1040" height="800" rx="22"/>
+
+    <!-- Sidebar -->
+    <rect x="0" y="0" width="238" height="800" rx="22" fill="#122435"/>
+    <rect x="16" y="20" width="206" height="88" rx="10" class="web-panel"/>
+    <rect x="30" y="36" width="44" height="44" rx="9" fill="#173f42"/>
+    <path d="M52 43 L43 51 L52 59 L61 51 Z M52 56 L43 64 L52 72 L61 64 Z" fill="#35c7b9"/>
+    <text x="88" y="53" class="text-web h2">MOVA</text>
+    <text x="88" y="77" class="muted-web small">Intelligence</text>
+    <rect x="20" y="124" width="198" height="38" rx="9" fill="#17484e" stroke="#2dc7b8" stroke-opacity=".5"/>
+    <text x="80" y="148" class="text-web small bold">v1.4.0 (25)</text>
+
+    <g class="muted-web small">
+      <rect x="26" y="184" width="42" height="42" rx="10" fill="#1b3347"/>
+      <rect x="37" y="195" width="8" height="8" fill="#93aabb"/><rect x="49" y="195" width="8" height="8" fill="#93aabb"/>
+      <rect x="37" y="207" width="8" height="8" fill="#93aabb"/><rect x="49" y="207" width="8" height="8" fill="#93aabb"/>
+      <text x="82" y="203" class="text-web bold">Головна</text>
+      <text x="82" y="224">Огляд системи</text>
+
+      <rect x="26" y="252" width="42" height="42" rx="10" fill="#20475b"/>
+      <path d="M38 264 h16 v17 h-16z M42 269 h8 M42 275 h10" fill="none" stroke="#2dc7b8" stroke-width="2"/>
+      <text x="82" y="271" class="text-web bold">Робота</text>
+      <text x="82" y="292">Задачі та проекти</text>
+
+      <rect x="26" y="320" width="42" height="42" rx="10" fill="#1b3347"/>
+      <path d="M37 333 h18 M37 340 h18 M37 347 h12" stroke="#93aabb" stroke-width="2"/>
+      <text x="82" y="339" class="text-web bold">Заявки</text>
+      <text x="82" y="360">Погодження оплат</text>
+
+      <rect x="26" y="388" width="42" height="42" rx="10" fill="#1b3347"/>
+      <path d="M37 401 h18 v12 h-13 l-5 6z" fill="none" stroke="#93aabb" stroke-width="2"/>
+      <text x="82" y="407" class="text-web bold">Комунікації</text>
+      <text x="82" y="428">Діалоги</text>
+    </g>
+
+    <!-- Main header -->
+    <g transform="translate(262,24)">
+      <text x="0" y="30" class="text-web h1">Проекти</text>
+      <text x="0" y="58" class="muted-web small">Контроль робіт, етапів, відповідальних та звʼязків із 1С</text>
+      <rect x="556" y="0" width="98" height="38" rx="9" fill="#21475a"/>
+      <text x="584" y="24" class="text-web small bold">Дошка</text>
+      <rect x="666" y="0" width="104" height="38" rx="9" fill="#162b3d"/>
+      <text x="692" y="24" class="muted-web small bold">Таблиця</text>
+      <rect x="782" y="0" width="104" height="38" rx="9" fill="#162b3d"/>
+      <text x="808" y="24" class="muted-web small bold">Етапи</text>
+    </g>
+
+    <!-- KPI -->
+    <g transform="translate(262,104)">
+      <rect class="web-panel" width="754" height="92" rx="14"/>
+      <g transform="translate(22,20)">
+        <text class="muted-web xs" x="0" y="0">АКТИВНІ ПРОЕКТИ</text>
+        <text class="text-web h1" x="0" y="40">12</text>
+      </g>
+      <g transform="translate(205,20)">
+        <text class="muted-web xs" x="0" y="0">ПРОСТРОЧЕНО</text>
+        <text fill="#ffbd6a" font-family="Inter, Segoe UI, Arial" font-size="30" font-weight="800" x="0" y="40">7</text>
+      </g>
+      <g transform="translate(385,20)">
+        <text class="muted-web xs" x="0" y="0">ПОТРЕБУЄ УВАГИ</text>
+        <text class="teal h1" x="0" y="40">18</text>
+      </g>
+      <g transform="translate(585,20)">
+        <text class="muted-web xs" x="0" y="0">ЗАКРИТО ЗА ТИЖДЕНЬ</text>
+        <text class="text-web h1" x="0" y="40">43</text>
+      </g>
+    </g>
+
+    <!-- Project list -->
+    <g transform="translate(262,220)">
+      <rect class="web-panel" width="230" height="548" rx="14"/>
+      <text x="18" y="34" class="text-web h3">Проекти</text>
+      <rect x="18" y="58" width="194" height="76" rx="10" fill="#1d4655" stroke="#2dc7b8"/>
+      <text x="32" y="84" class="text-web small bold">Запуск складу</text>
+      <text x="32" y="107" class="muted-web xs">BEERSPACE • 68%</text>
+      <rect x="32" y="117" width="150" height="6" rx="3" fill="#29485b"/>
+      <rect x="32" y="117" width="102" height="6" rx="3" class="teal"/>
+      <g class="muted-web small">
+        <rect x="18" y="148" width="194" height="66" rx="10" fill="#142b3d"/>
+        <text x="32" y="176" class="text-web medium">Регламент оплат</text>
+        <text x="32" y="198">Фінанси • 41%</text>
+        <rect x="18" y="228" width="194" height="66" rx="10" fill="#142b3d"/>
+        <text x="32" y="256" class="text-web medium">Інвентаризація</text>
+        <text x="32" y="278">Склад • 23%</text>
+        <rect x="18" y="308" width="194" height="66" rx="10" fill="#142b3d"/>
+        <text x="32" y="336" class="text-web medium">CRM закупівель</text>
+        <text x="32" y="358">Операційний • 76%</text>
+      </g>
+    </g>
+
+    <!-- Kanban -->
+    <g transform="translate(510,220)">
+      <rect class="web-panel" width="320" height="548" rx="14"/>
+      <text x="18" y="34" class="text-web h3">Дошка етапу</text>
+      <text x="18" y="58" class="muted-web xs">Етапи можуть бути послідовні або паралельні</text>
+
+      <g transform="translate(18,82)">
+        <rect width="284" height="88" rx="10" class="web-card"/>
+        <circle cx="20" cy="24" r="5" fill="#ffbd6a"/>
+        <text x="34" y="29" class="text-web small bold">Підготувати зони зберігання</text>
+        <text x="34" y="54" class="muted-web xs">Олег • до 12.06 • В роботі</text>
+        <rect x="34" y="64" width="66" height="18" rx="9" fill="#273f51"/>
+        <text x="45" y="77" class="teal xs bold">1С док</text>
+      </g>
+      <g transform="translate(18,184)">
+        <rect width="284" height="88" rx="10" class="web-card"/>
+        <circle cx="20" cy="24" r="5" fill="#2dc7b8"/>
+        <text x="34" y="29" class="text-web small bold">Звірити залишки з 1С</text>
+        <text x="34" y="54" class="muted-web xs">Валентина • сьогодні</text>
+        <text x="34" y="77" class="muted-web xs">3 коментарі • 2 вкладення</text>
+      </g>
+      <g transform="translate(18,286)">
+        <rect width="284" height="88" rx="10" class="web-card"/>
+        <circle cx="20" cy="24" r="5" fill="#e85f6a"/>
+        <text x="34" y="29" class="text-web small bold">Погодити доступи складу</text>
+        <text x="34" y="54" class="muted-web xs">IT • прострочено 2 дні</text>
+        <rect x="34" y="64" width="92" height="18" rx="9" fill="#4a2c33"/>
+        <text x="47" y="77" fill="#ff8d95" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="800">увага</text>
+      </g>
+      <g transform="translate(18,388)">
+        <rect width="284" height="88" rx="10" class="web-card"/>
+        <circle cx="20" cy="24" r="5" fill="#7c91ff"/>
+        <text x="34" y="29" class="text-web small bold">Навчити відповідальних</text>
+        <text x="34" y="54" class="muted-web xs">HR • наступний етап</text>
+      </g>
+    </g>
+
+    <!-- Detail panel -->
+    <g transform="translate(848,220)">
+      <rect class="web-panel" width="168" height="548" rx="14"/>
+      <text x="16" y="34" class="text-web h3">Деталі</text>
+      <text x="16" y="68" class="text-web small bold">Запуск складу</text>
+      <text x="16" y="91" class="muted-web xs">BEERSPACE</text>
+      <rect x="16" y="112" width="136" height="8" rx="4" fill="#29485b"/>
+      <rect x="16" y="112" width="92" height="8" rx="4" class="teal"/>
+      <text x="16" y="145" class="muted-web xs">Етапи</text>
+      <rect x="16" y="158" width="136" height="40" rx="8" fill="#183244"/>
+      <text x="28" y="183" class="text-web xs bold">1. Підготовка</text>
+      <rect x="16" y="208" width="136" height="40" rx="8" fill="#183244"/>
+      <text x="28" y="233" class="text-web xs bold">2. Паралельно</text>
+      <rect x="16" y="258" width="136" height="40" rx="8" fill="#183244"/>
+      <text x="28" y="283" class="text-web xs bold">3. Запуск</text>
+      <text x="16" y="332" class="muted-web xs">Звʼязки</text>
+      <text x="16" y="358" class="text-web xs">2 заявки</text>
+      <text x="16" y="382" class="text-web xs">4 документи 1С</text>
+      <text x="16" y="426" class="muted-web xs">Останній коментар</text>
+      <text x="16" y="452" class="text-web xs">“Залишки звірені,</text>
+      <text x="16" y="470" class="text-web xs">чекаємо доступи.”</text>
+    </g>
+  </g>
+
+  <!-- MOBILE APP -->
+  <g transform="translate(1165,115)">
+    <rect x="0" y="0" width="330" height="800" rx="42" fill="#202832" class="shadow"/>
+    <rect x="14" y="18" width="302" height="764" rx="34" class="mobile-bg"/>
+    <rect x="34" y="42" width="262" height="68" rx="18" class="mobile-card"/>
+    <text x="54" y="82" class="text-dark h2">Робота</text>
+    <rect x="194" y="58" width="82" height="28" rx="14" class="mobile-soft"/>
+    <text x="211" y="77" class="teal-dark xs bold">v1.4.0</text>
+
+    <text x="34" y="156" class="text-dark h1">Проекти</text>
+    <rect x="34" y="176" width="262" height="42" rx="16" fill="#e7eef1"/>
+    <rect x="38" y="180" width="76" height="34" rx="14" fill="#ffffff"/>
+    <text x="57" y="202" class="text-dark xs bold">Мої</text>
+    <text x="132" y="202" class="muted-dark xs bold">Проекти</text>
+    <text x="218" y="202" class="muted-dark xs bold">Увага</text>
+
+    <rect x="34" y="236" width="262" height="128" rx="20" class="mobile-card"/>
+    <text x="54" y="266" class="text-dark h3">Запуск складу</text>
+    <text x="54" y="288" class="muted-dark xs">BEERSPACE • 68%</text>
+    <rect x="54" y="306" width="198" height="8" rx="4" fill="#e2ebee"/>
+    <rect x="54" y="306" width="134" height="8" rx="4" class="teal"/>
+    <rect x="54" y="330" width="76" height="24" rx="12" class="mobile-soft"/>
+    <text x="68" y="346" class="teal-dark xs bold">3 етапи</text>
+    <rect x="138" y="330" width="94" height="24" rx="12" fill="#fff2df" stroke="#f0d4aa"/>
+    <text x="151" y="346" fill="#a66d18" font-family="Inter, Segoe UI, Arial" font-size="12" font-weight="800">2 ризики</text>
+
+    <rect x="34" y="382" width="262" height="110" rx="18" class="mobile-card"/>
+    <circle cx="58" cy="413" r="6" fill="#e85f6a"/>
+    <text x="74" y="417" class="text-dark small bold">Погодити доступи складу</text>
+    <text x="54" y="444" class="muted-dark xs">IT • прострочено 2 дні</text>
+    <text x="54" y="470" class="muted-dark xs">Коментарі 4 • Вкладення 1</text>
+
+    <rect x="34" y="506" width="262" height="110" rx="18" class="mobile-card"/>
+    <circle cx="58" cy="537" r="6" class="teal"/>
+    <text x="74" y="541" class="text-dark small bold">Звірити залишки з 1С</text>
+    <text x="54" y="568" class="muted-dark xs">Валентина • сьогодні</text>
+    <rect x="54" y="584" width="74" height="22" rx="11" class="mobile-soft"/>
+    <text x="70" y="599" class="teal-dark xs bold">1С док</text>
+
+    <rect x="34" y="630" width="262" height="76" rx="18" class="mobile-card"/>
+    <text x="54" y="660" class="text-dark h3">Мої лічильники</text>
+    <text x="54" y="686" class="muted-dark xs">5 у роботі • 2 прострочено • 8 поставив</text>
+
+    <rect x="14" y="720" width="302" height="62" rx="0" fill="#ffffff"/>
+    <text x="52" y="756" class="muted-dark xs bold">Головна</text>
+    <rect x="137" y="730" width="58" height="30" rx="15" fill="#dff5f2"/>
+    <text x="148" y="756" class="teal-dark xs bold">Робота</text>
+    <text x="238" y="756" class="muted-dark xs bold">Модулі</text>
+  </g>
+</svg>

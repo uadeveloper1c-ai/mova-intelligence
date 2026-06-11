@@ -24,6 +24,8 @@ class AuthProvider extends ChangeNotifier {
   bool _canNotifyUsers = false;
   bool _canNotifyAll = false;
   bool _canNotifyOwner = false;
+  bool _seesAllPaymentRequests = false;
+  bool _canAccessProduction = false;
   String? _defaultSubdivisionUid;
   int _avatarVersion = 0;
   String? lastError;
@@ -62,6 +64,18 @@ class AuthProvider extends ChangeNotifier {
   bool get canNotifyUsers => _canNotifyUsers;
   bool get canNotifyAll => _canNotifyAll;
   bool get canNotifyOwner => _canNotifyOwner;
+  bool get seesAllPaymentRequests => _seesAllPaymentRequests;
+  bool get canAccessProduction {
+    if (_canAccessProduction) return true;
+    final roles = currentUser?.roles ?? const <String>[];
+    return roles.any((role) {
+      final normalized = role.trim().toLowerCase();
+      return normalized == 'admin' ||
+          normalized == 'админ' ||
+          normalized == 'адмін';
+    });
+  }
+
   String? get defaultSubdivisionUid => _defaultSubdivisionUid;
   int get avatarVersion => _avatarVersion;
   bool get canAccessNotifications =>
@@ -97,6 +111,8 @@ class AuthProvider extends ChangeNotifier {
       _canNotifyUsers = _parseBool(meMap['canNotifyUsers']);
       _canNotifyAll = _parseBool(meMap['canNotifyAll']);
       _canNotifyOwner = _parseBool(meMap['canNotifyOwner']);
+      _seesAllPaymentRequests = _parseBool(meMap['seesAllPaymentRequests']);
+      _canAccessProduction = _parseBool(meMap['canAccessProduction']);
       _defaultSubdivisionUid = meMap['defaultSubdivisionUid']?.toString() ??
           meMap['defaultSubdivision']?.toString() ??
           meMap['defaultsubdivision']?.toString();
@@ -208,6 +224,8 @@ class AuthProvider extends ChangeNotifier {
       _canNotifyUsers = false;
       _canNotifyAll = false;
       _canNotifyOwner = false;
+      _seesAllPaymentRequests = false;
+      _canAccessProduction = false;
       _defaultSubdivisionUid = null;
       notifyListeners();
 
@@ -244,6 +262,8 @@ class AuthProvider extends ChangeNotifier {
     _canNotifyUsers = false;
     _canNotifyAll = false;
     _canNotifyOwner = false;
+    _seesAllPaymentRequests = false;
+    _canAccessProduction = false;
     _defaultSubdivisionUid = null;
     lastError = null;
 

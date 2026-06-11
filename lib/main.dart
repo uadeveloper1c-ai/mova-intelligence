@@ -16,6 +16,7 @@ import 'core/theme/theme_controller.dart';
 import 'features/approvals/approvals_service.dart';
 import 'features/events/events_service.dart';
 import 'features/notifications/notifications_service.dart';
+import 'features/production/production_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,6 +71,8 @@ void main() async {
         Provider<NotificationsService>(
           create: (_) => NotificationsService(apiClient),
         ),
+        Provider<ProductionService>(
+            create: (_) => ProductionService(apiClient)),
       ],
       child: MyApp(router: router),
     ),

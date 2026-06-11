@@ -94,6 +94,16 @@ class ModulesPage extends StatelessWidget {
           onTap: () => context.push('/invoices/recognize'),
         ),
         const SizedBox(height: 12),
+        if (auth.canAccessProduction) ...[
+          _ModuleCard(
+            title: 'Виробництво',
+            subtitle: 'Сировина, розлив, повернення та готова продукція',
+            icon: Icons.factory_outlined,
+            accent: const Color(0xFF0F766E),
+            onTap: () => context.push('/production'),
+          ),
+          const SizedBox(height: 12),
+        ],
         _ModuleCard(
           title: 'Звіти',
           subtitle: 'Аналітика, показники та огляд для керівника',

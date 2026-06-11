@@ -10,6 +10,7 @@ import UserNotifications
         DispatchQueue.main.async {
             UIApplication.shared.applicationIconBadgeNumber = 0
             UNUserNotificationCenter.current().removeAllDeliveredNotifications()
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
 
             if #available(iOS 16.0, *) {
                 UNUserNotificationCenter.current().setBadgeCount(0) { _ in }

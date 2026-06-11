@@ -53,7 +53,8 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
 
     final now = DateTime.now();
     _range = DateTimeRange(
-      start: DateTime(now.year, now.month, 1),
+      start: DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 13)),
       end: now,
     );
 
@@ -223,12 +224,6 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
       nextTab = _ApprovalsTab.mine;
     }
 
-    final now = DateTime.now();
-    _range ??= DateTimeRange(
-      start: DateTime(now.year, now.month, 1),
-      end: now,
-    );
-
     setState(() {
       _tab = nextTab;
       _statusFilter = nextStatus;
@@ -300,7 +295,12 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
 
   Future<void> _reload() async {
     final service = context.read<ApprovalsService>();
-    final future = _isIncomingTab ? service.getIncomingRequests() : _loadMineLikeRequests();
+    final future = _isIncomingTab
+        ? service.getIncomingRequests(
+            dateFrom: _range?.start,
+            dateTo: _range?.end,
+          )
+        : _loadMineLikeRequests();
 
     setState(() => _future = future);
 
@@ -314,8 +314,14 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
 
   Future<List<PaymentRequest>> _loadMineLikeRequests() async {
     final service = context.read<ApprovalsService>();
-    final my = await service.getMyRequests();
-    final department = await service.getDepartmentRequests();
+    final my = await service.getMyRequests(
+      dateFrom: _range?.start,
+      dateTo: _range?.end,
+    );
+    final department = await service.getDepartmentRequests(
+      dateFrom: _range?.start,
+      dateTo: _range?.end,
+    );
 
     final byId = <String, PaymentRequest>{};
     for (final item in [...my, ...department]) {
@@ -357,17 +363,14 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
   }
 
   void _clearFilters() {
-    final now = DateTime.now();
     setState(() {
-      _range = DateTimeRange(
-        start: DateTime(now.year, now.month, 1),
-        end: now,
-      );
+      _range = null;
       _statusFilter = null;
       _orgCodeFilter = null;
       _contractorQuery = '';
       _contractorCtrl.text = '';
     });
+    _reload();
   }
 
   void _openCreateRequest() {
@@ -378,7 +381,8 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
     final now = DateTime.now();
     final initial = _range ??
         DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
+          start: DateTime(now.year, now.month, now.day)
+              .subtract(const Duration(days: 13)),
           end: now,
         );
 
@@ -398,6 +402,7 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
 
     if (picked != null) {
       setState(() => _range = picked);
+      _reload();
     }
   }
 
@@ -864,12 +869,12 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
                           children: [
                             _StateCard(
                               icon: Icons.inbox_outlined,
-                                title: _isIncomingTab
-                                    ? 'Немає вхідних заявок'
-                                    : 'Немає заявок за обраними фільтрами',
-                                subtitle: _isIncomingTab
-                                    ? 'Зараз немає заявок, які очікують вашого рішення.'
-                                    : 'Спробуйте змінити період, статус, організацію або контрагента.',
+                              title: _isIncomingTab
+                                  ? 'Немає вхідних заявок'
+                                  : 'Немає заявок за обраними фільтрами',
+                              subtitle: _isIncomingTab
+                                  ? 'Зараз немає заявок, які очікують вашого рішення.'
+                                  : 'Спробуйте змінити період, статус, організацію або контрагента.',
                             ),
                           ],
                         ),
@@ -901,14 +906,18 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
                                     (r) => Padding(
                                       padding:
                                           const EdgeInsets.only(bottom: 10),
-                                 child: PaymentRequestCard(
-                                   r: r,
-                                   orgLabel: _orgLabelForRequest(r),
-                                   currentUserUid:
-                                       context.read<AuthProvider>().currentUser?.uid.trim() ?? '',
-                                   operationTypeLabel:
-                                       paymentOperationTypeHuman(
-                                     r.operationType,
+                                      child: PaymentRequestCard(
+                                        r: r,
+                                        orgLabel: _orgLabelForRequest(r),
+                                        currentUserUid: context
+                                                .read<AuthProvider>()
+                                                .currentUser
+                                                ?.uid
+                                                .trim() ??
+                                            '',
+                                        operationTypeLabel:
+                                            paymentOperationTypeHuman(
+                                          r.operationType,
                                         ),
                                         requestDateLabel:
                                             _fmtDate(r.requestDate),
@@ -1004,12 +1013,12 @@ class _TabsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-            Expanded(
-              child: _TabButton(
-                title: 'Мої / відділ',
-                selected: currentTab == _ApprovalsTab.mine,
-                onTap: onMine,
-              ),
+          Expanded(
+            child: _TabButton(
+              title: 'Мої / відділ',
+              selected: currentTab == _ApprovalsTab.mine,
+              onTap: onMine,
+            ),
           ),
         ],
       ),

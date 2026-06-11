@@ -27,6 +27,7 @@ class _WorkPageState extends State<WorkPage> {
   List<OrgAccess> _orgs = const [];
   String? _lastAppliedRouteSignature;
   Set<String> _incomingRequestIds = const {};
+  final Set<String> _actingRequestIds = {};
   bool _incomingOnly = false;
 
   late Future<List<PaymentRequest>> _future;
@@ -37,7 +38,8 @@ class _WorkPageState extends State<WorkPage> {
     super.initState();
     final now = DateTime.now();
     _range = DateTimeRange(
-      start: DateTime(now.year, now.month, 1),
+      start: DateTime(now.year, now.month, now.day)
+          .subtract(const Duration(days: 13)),
       end: now,
     );
     _future = _loadRequests();
@@ -67,28 +69,47 @@ class _WorkPageState extends State<WorkPage> {
 
     if (nextStatus != _statusFilter ||
         incomingOnly != _incomingOnly ||
-        (resetPeriod && _range != null)) {
+        (resetPeriod && _range != null) ||
+        (incomingOnly && _tab != WorkTab.approvals)) {
       setState(() {
         _statusFilter = nextStatus;
         _incomingOnly = incomingOnly;
+        if (incomingOnly) {
+          _tab = WorkTab.approvals;
+        }
         if (resetPeriod) {
           _range = null;
         }
       });
+      if (resetPeriod) {
+        final future = _loadRequests(forceIncomingRefresh: true);
+        setState(() => _future = future);
+      }
     }
   }
 
-  Future<List<PaymentRequest>> _loadRequests() async {
+  Future<List<PaymentRequest>> _loadRequests({
+    bool forceIncomingRefresh = false,
+  }) async {
     final service = context.read<ApprovalsService>();
+    final seesAll = context.read<AuthProvider>().seesAllPaymentRequests;
 
     final lists = await Future.wait<List<PaymentRequest>>([
-      service.getMyRequests(),
-      service.getIncomingRequests(),
-      service.getDepartmentRequests(),
+      service.getMyRequests(dateFrom: _range?.start, dateTo: _range?.end),
+      service.getIncomingRequests(
+        forceRefresh: forceIncomingRefresh,
+        dateFrom: _range?.start,
+        dateTo: _range?.end,
+      ),
+      if (!seesAll)
+        service.getDepartmentRequests(
+          dateFrom: _range?.start,
+          dateTo: _range?.end,
+        ),
     ]);
     final my = lists[0];
     final incoming = lists[1];
-    final department = lists[2];
+    final department = seesAll ? const <PaymentRequest>[] : lists[2];
     _incomingRequestIds = incoming.map((r) => r.id).toSet();
 
     final byId = <String, PaymentRequest>{};
@@ -106,15 +127,91 @@ class _WorkPageState extends State<WorkPage> {
   }
 
   Future<void> _refresh() async {
-    final future = _loadRequests();
+    final future = _loadRequests(forceIncomingRefresh: true);
     setState(() {
       _future = future;
     });
     await future;
   }
 
+  Future<void> _changeStatusFromDesktopList(
+    PaymentRequest request,
+    PaymentRequestStatus status,
+  ) async {
+    if (_actingRequestIds.contains(request.id)) return;
+
+    final isReject = status == PaymentRequestStatus.rejected;
+    final commentController = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(isReject ? 'Відхилити заявку?' : 'Погодити заявку?'),
+          content: isReject
+              ? TextField(
+                  controller: commentController,
+                  autofocus: true,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: 'Коментар',
+                    hintText: 'Причина відхилення',
+                  ),
+                )
+              : Text(
+                  'Погодити заявку на ${_formatAmount(request.amount, request.currency)}?',
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Скасувати'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: Icon(
+                isReject ? Icons.close_rounded : Icons.check_rounded,
+              ),
+              label: Text(isReject ? 'Відхилити' : 'Погодити'),
+            ),
+          ],
+        );
+      },
+    );
+    final comment = commentController.text.trim();
+    commentController.dispose();
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _actingRequestIds.add(request.id));
+    try {
+      await context.read<ApprovalsService>().changeStatus(
+            requestId: request.id,
+            newStatus: status,
+            comment: comment.isEmpty ? null : comment,
+          );
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isReject ? 'Заявку відхилено' : 'Заявку погоджено'),
+        ),
+      );
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося змінити статус: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _actingRequestIds.remove(request.id));
+      }
+    }
+  }
+
   bool get _hasAnyApprovalFilter {
-    return _range != null ||
+    return _incomingOnly ||
+        _range != null ||
         _statusFilter != null ||
         (_orgCodeFilter?.trim().isNotEmpty ?? false) ||
         _contractorQuery.trim().isNotEmpty;
@@ -428,14 +525,18 @@ class _WorkPageState extends State<WorkPage> {
       _orgCodeFilter = null;
       _contractorQuery = '';
       _contractorCtrl.text = '';
+      _incomingOnly = false;
     });
+    final future = _loadRequests(forceIncomingRefresh: true);
+    setState(() => _future = future);
   }
 
   Future<void> _pickRange() async {
     final now = DateTime.now();
     final initial = _range ??
         DateTimeRange(
-          start: DateTime(now.year, now.month, 1),
+          start: DateTime(now.year, now.month, now.day)
+              .subtract(const Duration(days: 13)),
           end: now,
         );
 
@@ -455,6 +556,8 @@ class _WorkPageState extends State<WorkPage> {
 
     if (picked != null && mounted) {
       setState(() => _range = picked);
+      final future = _loadRequests(forceIncomingRefresh: true);
+      setState(() => _future = future);
     }
   }
 
@@ -835,6 +938,7 @@ class _WorkPageState extends State<WorkPage> {
                         paymentFormFormatter: _paymentFormText,
                         statusUiBuilder: (status) => _statusUi(status, isDark),
                         incomingRequestIds: _incomingRequestIds,
+                        actingRequestIds: _actingRequestIds,
                         isLoading:
                             snap.connectionState != ConnectionState.done &&
                                 !snap.hasData,
@@ -859,6 +963,16 @@ class _WorkPageState extends State<WorkPage> {
                         },
                         onCopyRequest: _openCopy,
                         onEditRequest: _openEdit,
+                        onApproveRequest: (request) =>
+                            _changeStatusFromDesktopList(
+                          request,
+                          PaymentRequestStatus.approved,
+                        ),
+                        onRejectRequest: (request) =>
+                            _changeStatusFromDesktopList(
+                          request,
+                          PaymentRequestStatus.rejected,
+                        ),
                         canEditRequest: (request) =>
                             _isCurrentUserAuthor(request) &&
                             _isEditableStatus(request.status),
@@ -1165,6 +1279,7 @@ class _DesktopWorkShell extends StatelessWidget {
     required this.paymentFormFormatter,
     required this.statusUiBuilder,
     required this.incomingRequestIds,
+    required this.actingRequestIds,
     required this.isLoading,
     required this.error,
     required this.onCreate,
@@ -1174,6 +1289,8 @@ class _DesktopWorkShell extends StatelessWidget {
     required this.onOpenRequest,
     required this.onCopyRequest,
     required this.onEditRequest,
+    required this.onApproveRequest,
+    required this.onRejectRequest,
     required this.canEditRequest,
     required this.onStatus,
     required this.onPeriod,
@@ -1201,6 +1318,7 @@ class _DesktopWorkShell extends StatelessWidget {
   final String Function(PaymentForm form) paymentFormFormatter;
   final _StatusUi Function(PaymentRequestStatus status) statusUiBuilder;
   final Set<String> incomingRequestIds;
+  final Set<String> actingRequestIds;
   final bool isLoading;
   final Object? error;
   final VoidCallback onCreate;
@@ -1210,6 +1328,8 @@ class _DesktopWorkShell extends StatelessWidget {
   final ValueChanged<PaymentRequest> onOpenRequest;
   final ValueChanged<PaymentRequest> onCopyRequest;
   final ValueChanged<PaymentRequest> onEditRequest;
+  final ValueChanged<PaymentRequest> onApproveRequest;
+  final ValueChanged<PaymentRequest> onRejectRequest;
   final bool Function(PaymentRequest request) canEditRequest;
   final VoidCallback onStatus;
   final VoidCallback onPeriod;
@@ -1344,28 +1464,25 @@ class _DesktopWorkShell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: 1180,
-                    child: _DesktopApprovalsTable(
-                      approvals: approvals,
-                      selectedId: selected?.id,
-                      incomingRequestIds: incomingRequestIds,
-                      border: border,
-                      isDark: isDark,
-                      orgLabelForRequest: orgLabelForRequest,
-                      amountFormatter: amountFormatter,
-                      dateFormatter: dateFormatter,
-                      paymentFormFormatter: paymentFormFormatter,
-                      statusUiBuilder: statusUiBuilder,
-                      onSelectRequest: onSelectRequest,
-                      onOpenRequest: onOpenRequest,
-                      onCopyRequest: onCopyRequest,
-                      onEditRequest: onEditRequest,
-                      canEditRequest: canEditRequest,
-                    ),
-                  ),
+                child: _DesktopApprovalsTable(
+                  approvals: approvals,
+                  selectedId: selected?.id,
+                  incomingRequestIds: incomingRequestIds,
+                  actingRequestIds: actingRequestIds,
+                  border: border,
+                  isDark: isDark,
+                  orgLabelForRequest: orgLabelForRequest,
+                  amountFormatter: amountFormatter,
+                  dateFormatter: dateFormatter,
+                  paymentFormFormatter: paymentFormFormatter,
+                  statusUiBuilder: statusUiBuilder,
+                  onSelectRequest: onSelectRequest,
+                  onOpenRequest: onOpenRequest,
+                  onCopyRequest: onCopyRequest,
+                  onEditRequest: onEditRequest,
+                  onApproveRequest: onApproveRequest,
+                  onRejectRequest: onRejectRequest,
+                  canEditRequest: canEditRequest,
                 ),
               ),
               const SizedBox(width: 14),
@@ -1820,11 +1937,12 @@ class _DesktopSearchChip extends StatelessWidget {
   }
 }
 
-class _DesktopApprovalsTable extends StatelessWidget {
+class _DesktopApprovalsTable extends StatefulWidget {
   const _DesktopApprovalsTable({
     required this.approvals,
     required this.selectedId,
     required this.incomingRequestIds,
+    required this.actingRequestIds,
     required this.border,
     required this.isDark,
     required this.orgLabelForRequest,
@@ -1836,12 +1954,15 @@ class _DesktopApprovalsTable extends StatelessWidget {
     required this.onOpenRequest,
     required this.onCopyRequest,
     required this.onEditRequest,
+    required this.onApproveRequest,
+    required this.onRejectRequest,
     required this.canEditRequest,
   });
 
   final List<PaymentRequest> approvals;
   final String? selectedId;
   final Set<String> incomingRequestIds;
+  final Set<String> actingRequestIds;
   final Color border;
   final bool isDark;
   final String Function(PaymentRequest request) orgLabelForRequest;
@@ -1853,58 +1974,169 @@ class _DesktopApprovalsTable extends StatelessWidget {
   final ValueChanged<PaymentRequest> onOpenRequest;
   final ValueChanged<PaymentRequest> onCopyRequest;
   final ValueChanged<PaymentRequest> onEditRequest;
+  final ValueChanged<PaymentRequest> onApproveRequest;
+  final ValueChanged<PaymentRequest> onRejectRequest;
   final bool Function(PaymentRequest request) canEditRequest;
+
+  @override
+  State<_DesktopApprovalsTable> createState() => _DesktopApprovalsTableState();
+}
+
+class _DesktopApprovalsTableState extends State<_DesktopApprovalsTable> {
+  static const _pageSize = 80;
+  int _page = 0;
+
+  @override
+  void didUpdateWidget(covariant _DesktopApprovalsTable oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final maxPage = _maxPage;
+    if (_page > maxPage) {
+      _page = maxPage;
+    }
+  }
+
+  int get _maxPage =>
+      widget.approvals.isEmpty ? 0 : (widget.approvals.length - 1) ~/ _pageSize;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final tableHeight =
+        (MediaQuery.sizeOf(context).height - 250).clamp(460.0, 760.0);
+    final start = _page * _pageSize;
+    final end = (start + _pageSize).clamp(0, widget.approvals.length);
+    final pageItems = widget.approvals.sublist(start, end);
+
+    return SizedBox(
+      height: tableHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: widget.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Container(
+              height: 42,
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
+              child: const Row(
+                children: [
+                  _DesktopTableHeader(flex: 4, text: 'Організація'),
+                  _DesktopTableHeader(flex: 3, text: 'Контрагент'),
+                  _DesktopTableHeader(width: 112, text: 'ЄДРПОУ'),
+                  _DesktopTableHeader(width: 126, text: 'Сума'),
+                  _DesktopTableHeader(width: 114, text: 'Форма'),
+                  _DesktopTableHeader(width: 152, text: 'Статус'),
+                  _DesktopTableHeader(width: 126, text: 'Дата'),
+                  _DesktopTableHeader(width: 168, text: 'Дії'),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: pageItems.length,
+                itemExtent: 64,
+                itemBuilder: (context, index) {
+                  final request = pageItems[index];
+                  final statusUi = widget.statusUiBuilder(request.status);
+                  final selected = request.id == widget.selectedId;
+
+                  return _DesktopApprovalRow(
+                    request: request,
+                    selected: selected,
+                    statusUi: statusUi,
+                    org: widget.orgLabelForRequest(request),
+                    amount: widget.amountFormatter(
+                        request.amount, request.currency),
+                    date: widget.dateFormatter(request.requestDate),
+                    paymentForm:
+                        widget.paymentFormFormatter(request.paymentForm),
+                    canAct: widget.incomingRequestIds.contains(request.id),
+                    isActing: widget.actingRequestIds.contains(request.id),
+                    canEdit: widget.canEditRequest(request),
+                    onTap: () => widget.onSelectRequest(request),
+                    onOpen: () => widget.onOpenRequest(request),
+                    onCopy: () => widget.onCopyRequest(request),
+                    onEdit: () => widget.onEditRequest(request),
+                    onApprove: () => widget.onApproveRequest(request),
+                    onReject: () => widget.onRejectRequest(request),
+                  );
+                },
+              ),
+            ),
+            if (widget.approvals.length > _pageSize)
+              _DesktopTablePager(
+                start: start + 1,
+                end: end,
+                total: widget.approvals.length,
+                canGoBack: _page > 0,
+                canGoForward: _page < _maxPage,
+                onBack: () => setState(() => _page--),
+                onForward: () => setState(() => _page++),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopTablePager extends StatelessWidget {
+  const _DesktopTablePager({
+    required this.start,
+    required this.end,
+    required this.total,
+    required this.canGoBack,
+    required this.canGoForward,
+    required this.onBack,
+    required this.onForward,
+  });
+
+  final int start;
+  final int end;
+  final int total;
+  final bool canGoBack;
+  final bool canGoForward;
+  final VoidCallback onBack;
+  final VoidCallback onForward;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
 
     return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.20),
+        border: Border(top: BorderSide(color: cs.outlineVariant)),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
+      child: Row(
         children: [
-          Container(
-            height: 42,
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
-            child: const Row(
-              children: [
-                _DesktopTableHeader(flex: 4, text: 'Організація'),
-                _DesktopTableHeader(flex: 3, text: 'Контрагент'),
-                _DesktopTableHeader(width: 112, text: 'ЄДРПОУ'),
-                _DesktopTableHeader(width: 126, text: 'Сума'),
-                _DesktopTableHeader(width: 114, text: 'Форма'),
-                _DesktopTableHeader(width: 152, text: 'Статус'),
-                _DesktopTableHeader(width: 126, text: 'Дата'),
-                _DesktopTableHeader(width: 132, text: 'Дії'),
-              ],
+          Text(
+            '$start-$end із $total',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.66),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          ...approvals.take(80).map((request) {
-            final statusUi = statusUiBuilder(request.status);
-            final selected = request.id == selectedId;
-
-            return _DesktopApprovalRow(
-              request: request,
-              selected: selected,
-              statusUi: statusUi,
-              org: orgLabelForRequest(request),
-              amount: amountFormatter(request.amount, request.currency),
-              date: dateFormatter(request.requestDate),
-              paymentForm: paymentFormFormatter(request.paymentForm),
-              canAct: incomingRequestIds.contains(request.id),
-              canEdit: canEditRequest(request),
-              onTap: () => onSelectRequest(request),
-              onOpen: () => onOpenRequest(request),
-              onCopy: () => onCopyRequest(request),
-              onEdit: () => onEditRequest(request),
-            );
-          }),
+          const Spacer(),
+          if (canGoBack)
+            IconButton(
+              tooltip: 'Попередня сторінка',
+              onPressed: onBack,
+              icon: const Icon(Icons.chevron_left_rounded),
+            ),
+          if (canGoForward)
+            IconButton(
+              tooltip: 'Наступна сторінка',
+              onPressed: onForward,
+              icon: const Icon(Icons.chevron_right_rounded),
+            ),
         ],
       ),
     );
@@ -1957,11 +2189,14 @@ class _DesktopApprovalRow extends StatelessWidget {
     required this.date,
     required this.paymentForm,
     required this.canAct,
+    required this.isActing,
     required this.canEdit,
     required this.onTap,
     required this.onOpen,
     required this.onCopy,
     required this.onEdit,
+    required this.onApprove,
+    required this.onReject,
   });
 
   final PaymentRequest request;
@@ -1972,11 +2207,14 @@ class _DesktopApprovalRow extends StatelessWidget {
   final String date;
   final String paymentForm;
   final bool canAct;
+  final bool isActing;
   final bool canEdit;
   final VoidCallback onTap;
   final VoidCallback onOpen;
   final VoidCallback onCopy;
   final VoidCallback onEdit;
+  final VoidCallback onApprove;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -2037,31 +2275,68 @@ class _DesktopApprovalRow extends StatelessWidget {
               ),
               _DesktopTableCell(width: 126, text: date),
               SizedBox(
-                width: 132,
+                width: 168,
                 child: Align(
                   alignment: Alignment.center,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _DesktopActionIconButton(
-                        tooltip: canAct ? 'Відкрити з діями' : 'Відкрити',
-                        icon: canAct
-                            ? Icons.rate_review_rounded
-                            : Icons.open_in_new_rounded,
-                        onPressed: onOpen,
-                      ),
-                      _DesktopActionIconButton(
-                        tooltip: 'Копіювати',
-                        icon: Icons.copy_rounded,
-                        onPressed: onCopy,
-                      ),
-                      _DesktopActionIconButton(
-                        tooltip:
-                            canEdit ? 'Редагувати' : 'Редагування недоступне',
-                        icon: Icons.edit_rounded,
-                        onPressed: canEdit ? onEdit : null,
-                      ),
-                    ],
+                    children: canAct
+                        ? [
+                            if (isActing)
+                              const SizedBox(
+                                width: 36,
+                                height: 36,
+                                child: Padding(
+                                  padding: EdgeInsets.all(9),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            else ...[
+                              _DesktopActionIconButton(
+                                tooltip: 'Відкрити',
+                                icon: Icons.open_in_new_rounded,
+                                onPressed: onOpen,
+                              ),
+                              _DesktopActionIconButton(
+                                tooltip: 'Погодити',
+                                icon: Icons.check_rounded,
+                                color: const Color(0xFF0F766E),
+                                onPressed: onApprove,
+                              ),
+                              _DesktopActionIconButton(
+                                tooltip: 'Відхилити',
+                                icon: Icons.close_rounded,
+                                color: const Color(0xFFDC2626),
+                                onPressed: onReject,
+                              ),
+                            ],
+                            _DesktopRequestActionsMenu(
+                              canEdit: canEdit,
+                              enabled: !isActing,
+                              onCopy: onCopy,
+                              onEdit: onEdit,
+                            ),
+                          ]
+                        : [
+                            _DesktopActionIconButton(
+                              tooltip: 'Відкрити',
+                              icon: Icons.open_in_new_rounded,
+                              onPressed: onOpen,
+                            ),
+                            _DesktopActionIconButton(
+                              tooltip: 'Копіювати',
+                              icon: Icons.copy_rounded,
+                              onPressed: onCopy,
+                            ),
+                            _DesktopActionIconButton(
+                              tooltip: canEdit
+                                  ? 'Редагувати'
+                                  : 'Редагування недоступне',
+                              icon: Icons.edit_rounded,
+                              onPressed: canEdit ? onEdit : null,
+                            ),
+                          ],
                   ),
                 ),
               ),
@@ -2118,11 +2393,13 @@ class _DesktopActionIconButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.color,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback? onPressed;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -2134,7 +2411,64 @@ class _DesktopActionIconButton extends StatelessWidget {
         padding: EdgeInsets.zero,
         iconSize: 18,
         onPressed: onPressed,
-        icon: Icon(icon),
+        icon: Icon(icon, color: onPressed == null ? null : color),
+      ),
+    );
+  }
+}
+
+enum _DesktopRequestMenuAction { copy, edit }
+
+class _DesktopRequestActionsMenu extends StatelessWidget {
+  const _DesktopRequestActionsMenu({
+    required this.canEdit,
+    required this.enabled,
+    required this.onCopy,
+    required this.onEdit,
+  });
+
+  final bool canEdit;
+  final bool enabled;
+  final VoidCallback onCopy;
+  final VoidCallback onEdit;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 36,
+      height: 36,
+      child: PopupMenuButton<_DesktopRequestMenuAction>(
+        tooltip: 'Інші дії',
+        enabled: enabled,
+        icon: const Icon(Icons.more_vert_rounded, size: 18),
+        padding: EdgeInsets.zero,
+        onSelected: (action) {
+          switch (action) {
+            case _DesktopRequestMenuAction.copy:
+              onCopy();
+            case _DesktopRequestMenuAction.edit:
+              onEdit();
+          }
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: _DesktopRequestMenuAction.copy,
+            child: ListTile(
+              leading: Icon(Icons.copy_rounded),
+              title: Text('Копіювати'),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          if (canEdit)
+            const PopupMenuItem(
+              value: _DesktopRequestMenuAction.edit,
+              child: ListTile(
+                leading: Icon(Icons.edit_rounded),
+                title: Text('Редагувати'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+        ],
       ),
     );
   }

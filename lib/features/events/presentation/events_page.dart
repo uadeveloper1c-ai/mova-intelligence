@@ -16,9 +16,10 @@ class EventsPage extends StatefulWidget {
 
 class _EventsPageState extends State<EventsPage> {
   bool _loading = true;
+  bool _markingAll = false;
   String? _error;
   List<EventItem> _items = [];
-  bool _unreadOnly = false;
+  bool _unreadOnly = true;
 
   @override
   void initState() {
@@ -40,7 +41,7 @@ class _EventsPageState extends State<EventsPage> {
       setState(() => _items = items);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Не вдалося завантажити події');
+      setState(() => _error = 'Не вдалося завантажити події\n$e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -58,6 +59,8 @@ class _EventsPageState extends State<EventsPage> {
         return Icons.payments_outlined;
       case 'telegram_order_new':
         return Icons.shopping_bag_outlined;
+      case 'wms_invoice_created':
+        return Icons.print_outlined;
       default:
         return Icons.notifications_none;
     }
@@ -92,20 +95,44 @@ class _EventsPageState extends State<EventsPage> {
   Future<void> _markReadIfNeeded(EventItem e) async {
     if (e.read) return;
 
-    // мгновенно обновим UI (ощущается быстрее)
-    _setReadLocal(e.id);
-
     try {
       await context.read<EventsService>().markRead([e.id]);
-    } catch (_) {
-      // если не удалось — можно откатить read назад, но для MVP ок оставить
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Не вдалося позначити подію прочитаною: $error')),
+      );
+      return;
     }
 
-    // если включен фильтр "только непрочитанные" — уберем событие из списка
+    if (!mounted) return;
+    _setReadLocal(e.id);
+
     if (_unreadOnly) {
       setState(() {
         _items = _items.where((x) => x.id != e.id).toList();
       });
+    }
+  }
+
+  Future<void> _markAllRead() async {
+    if (_markingAll) return;
+
+    setState(() => _markingAll = true);
+    try {
+      await context.read<EventsService>().markAllRead();
+      if (!mounted) return;
+      await _load();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Не вдалося позначити всі події прочитаними: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _markingAll = false);
     }
   }
 
@@ -149,6 +176,34 @@ class _EventsPageState extends State<EventsPage> {
     );
   }
 
+  Widget _buildHeaderControls() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          label: const Text('Лише непрочитані'),
+          selected: _unreadOnly,
+          onSelected: (v) {
+            setState(() => _unreadOnly = v);
+            _load();
+          },
+        ),
+        OutlinedButton.icon(
+          onPressed:
+              _loading || _markingAll || _items.isEmpty ? null : _markAllRead,
+          icon: _markingAll
+              ? const SizedBox.square(
+                  dimension: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.done_all, size: 18),
+          label: const Text('Прочитати всі'),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,23 +213,31 @@ class _EventsPageState extends State<EventsPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Події',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                FilterChip(
-                  label: const Text('Лише непрочитані'),
-                  selected: _unreadOnly,
-                  onSelected: (v) {
-                    setState(() => _unreadOnly = v);
-                    _load();
-                  },
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final title = Text(
+                  'Події',
+                  style: Theme.of(context).textTheme.titleLarge,
+                );
+
+                if (constraints.maxWidth < 560) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      title,
+                      const SizedBox(height: 8),
+                      _buildHeaderControls(),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: title),
+                    _buildHeaderControls(),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 10),
             if (_loading) const LinearProgressIndicator(),

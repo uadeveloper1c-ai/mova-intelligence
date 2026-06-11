@@ -170,8 +170,32 @@ double _parseJsonDouble(dynamic value) {
 
 class ApprovalsService {
   final ApiClient _apiClient;
+  List<PaymentRequest>? _incomingCache;
+  DateTime? _incomingCacheAt;
+  Future<List<PaymentRequest>>? _incomingInFlight;
+  String? _incomingCacheKey;
+  String? _incomingInFlightKey;
 
   ApprovalsService(this._apiClient);
+
+  void invalidateIncomingCache() {
+    _incomingCache = null;
+    _incomingCacheAt = null;
+    _incomingCacheKey = null;
+  }
+
+  String _dateParam(DateTime value) =>
+      '${value.year.toString().padLeft(4, '0')}-'
+      '${value.month.toString().padLeft(2, '0')}-'
+      '${value.day.toString().padLeft(2, '0')}';
+
+  String _withPeriod(String endpoint, DateTime? dateFrom, DateTime? dateTo) {
+    final params = <String, String>{};
+    if (dateFrom != null) params['dateFrom'] = _dateParam(dateFrom);
+    if (dateTo != null) params['dateTo'] = _dateParam(dateTo);
+    if (params.isEmpty) return endpoint;
+    return Uri(path: endpoint, queryParameters: params).toString();
+  }
 
   dynamic _decodeJsonResponse(http.Response r) {
     final body = utf8.decode(r.bodyBytes);
@@ -201,8 +225,12 @@ class ApprovalsService {
     return _decodeJsonResponse(r);
   }
 
-  Future<List<PaymentRequest>> getMyRequests() async {
-    final data = await _getJson('/approvals/my-requests');
+  Future<List<PaymentRequest>> getMyRequests({
+    DateTime? dateFrom,
+    DateTime? dateTo,
+  }) async {
+    final data =
+        await _getJson(_withPeriod('/approvals/my-requests', dateFrom, dateTo));
     if (data is! List) {
       throw Exception('Очікувався список заявок, отримав: $data');
     }
@@ -212,20 +240,63 @@ class ApprovalsService {
         .toList();
   }
 
-  Future<List<PaymentRequest>> getIncomingRequests() async {
-    final data = await _getJson('/approvals/incoming');
-    if (data is! List) {
-      throw Exception('Очікувався список заявок, отримав: $data');
+  Future<List<PaymentRequest>> getIncomingRequests({
+    bool forceRefresh = false,
+    DateTime? dateFrom,
+    DateTime? dateTo,
+  }) async {
+    final cacheKey = _withPeriod('/approvals/incoming', dateFrom, dateTo);
+    final cacheAt = _incomingCacheAt;
+    if (!forceRefresh &&
+        _incomingCache != null &&
+        _incomingCacheKey == cacheKey &&
+        cacheAt != null &&
+        DateTime.now().difference(cacheAt) < const Duration(seconds: 30)) {
+      return _incomingCache!;
     }
-    return data
-        .map(
-            (e) => PaymentRequest.fromJson(Map<String, dynamic>.from(e as Map)))
-        .toList();
-  }
 
-  Future<List<PaymentRequest>> getDepartmentRequests() async {
+    if (!forceRefresh &&
+        _incomingInFlight != null &&
+        _incomingInFlightKey == cacheKey) {
+      return _incomingInFlight!;
+    }
+
+    final future = _loadIncomingRequests(cacheKey);
+    _incomingInFlight = future;
+    _incomingInFlightKey = cacheKey;
     try {
-      final data = await _getJson('/approvals/department-requests');
+      return await future;
+    } finally {
+      if (identical(_incomingInFlight, future)) {
+        _incomingInFlight = null;
+        _incomingInFlightKey = null;
+      }
+    }
+  }
+
+  Future<List<PaymentRequest>> _loadIncomingRequests(String endpoint) async {
+    final data = await _getJson(endpoint);
+    if (data is! List) {
+      throw Exception('Очікувався список заявок, отримав: $data');
+    }
+    final result = data
+        .map(
+            (e) => PaymentRequest.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    _incomingCache = result;
+    _incomingCacheAt = DateTime.now();
+    _incomingCacheKey = endpoint;
+    return result;
+  }
+
+  Future<List<PaymentRequest>> getDepartmentRequests({
+    DateTime? dateFrom,
+    DateTime? dateTo,
+  }) async {
+    try {
+      final data = await _getJson(
+        _withPeriod('/approvals/department-requests', dateFrom, dateTo),
+      );
       if (data is! List) {
         throw Exception('Очікувався список заявок підрозділу, отримав: $data');
       }
@@ -337,6 +408,7 @@ class ApprovalsService {
     if (data is! Map) {
       throw Exception('Очікувався обʼєкт заявки, отримав: $data');
     }
+    invalidateIncomingCache();
     return PaymentRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
@@ -402,6 +474,7 @@ class ApprovalsService {
     if (data is! Map) {
       throw Exception('Очікувався обʼєкт заявки, отримав: $data');
     }
+    invalidateIncomingCache();
     return PaymentRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
@@ -459,6 +532,7 @@ class ApprovalsService {
     if (data is! Map) {
       throw Exception('Очікувався обʼєкт заявки, отримав: $data');
     }
+    invalidateIncomingCache();
     return PaymentRequest.fromJson(Map<String, dynamic>.from(data));
   }
 
@@ -476,6 +550,7 @@ class ApprovalsService {
     if (data is! Map) {
       throw Exception('Очікувався обʼєкт заявки, отримав: $data');
     }
+    invalidateIncomingCache();
     return PaymentRequest.fromJson(Map<String, dynamic>.from(data));
   }
 

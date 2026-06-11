@@ -25,6 +25,9 @@ import '../../features/modules/presentation/modules_page.dart';
 import '../../features/messages/presentation/messages_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/production/production_service.dart';
+import '../../features/production/presentation/new_production_request_page.dart';
+import '../../features/production/presentation/production_page.dart';
 
 GoRouter createRouter(AuthProvider auth) {
   return GoRouter(
@@ -40,6 +43,11 @@ GoRouter createRouter(AuthProvider auth) {
 
       if (loggedIn && loggingIn) {
         return '/home';
+      }
+
+      if (state.matchedLocation.startsWith('/production') &&
+          !auth.canAccessProduction) {
+        return '/modules';
       }
 
       return null;
@@ -139,6 +147,26 @@ GoRouter createRouter(AuthProvider auth) {
       GoRoute(
         path: '/reports',
         builder: (context, state) => const AppScaffold(child: ReportsPage()),
+      ),
+      GoRoute(
+        path: '/production',
+        builder: (context, state) => const AppScaffold(child: ProductionPage()),
+      ),
+      GoRoute(
+        path: '/production/new',
+        builder: (context, state) {
+          final rawType = state.uri.queryParameters['type'] ?? '';
+          ProductionRequestType? type;
+          for (final value in ProductionRequestType.values) {
+            if (value.code.toLowerCase() == rawType.toLowerCase()) {
+              type = value;
+              break;
+            }
+          }
+          return AppScaffold(
+            child: NewProductionRequestPage(initialType: type),
+          );
+        },
       ),
     ],
   );

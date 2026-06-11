@@ -34,6 +34,7 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
   late Future<PaymentRequest> _future;
   bool _busy = false;
   late bool _actionsEnabled;
+  bool _checkedIncomingActions = false;
   String? _openingAttachmentUid;
   Map<String, String> _orgNamesByCode = const {};
 
@@ -68,6 +69,31 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
   Future<PaymentRequest> _load() {
     final service = context.read<ApprovalsService>();
     return service.getRequestById(widget.uid);
+  }
+
+  Future<void> _ensureIncomingActions(PaymentRequest request) async {
+    if (_actionsEnabled || _checkedIncomingActions) return;
+    _checkedIncomingActions = true;
+
+    final actionableStatus = request.status == PaymentRequestStatus.pending ||
+        request.status == PaymentRequestStatus.approvedByDepartmentHead ||
+        request.status == PaymentRequestStatus.approvedByFinanceDirector;
+    if (!actionableStatus) return;
+
+    try {
+      final incoming =
+          await context.read<ApprovalsService>().getIncomingRequests();
+      if (!mounted) return;
+
+      final canAct = incoming.any((item) => item.id == request.id);
+      if (canAct) {
+        setState(() {
+          _actionsEnabled = true;
+        });
+      }
+    } catch (_) {
+      // Детали заявки должны открываться даже если проверка входящих недоступна.
+    }
   }
 
   Future<void> _reload() async {
@@ -640,6 +666,8 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
     final attachments = r.attachments;
     final packageItems = r.paymentPackageItems;
 
+    _ensureIncomingActions(r);
+
     final canAct = _actionsEnabled &&
         (r.status == PaymentRequestStatus.pending ||
             r.status == PaymentRequestStatus.approvedByDepartmentHead ||
@@ -1178,7 +1206,7 @@ class _StatusUi {
   });
 }
 
-class _AttachmentPreviewDialog extends StatelessWidget {
+class _AttachmentPreviewDialog extends StatefulWidget {
   final String fileName;
   final Uint8List bytes;
 
@@ -1188,16 +1216,49 @@ class _AttachmentPreviewDialog extends StatelessWidget {
   });
 
   @override
+  State<_AttachmentPreviewDialog> createState() =>
+      _AttachmentPreviewDialogState();
+}
+
+class _AttachmentPreviewDialogState extends State<_AttachmentPreviewDialog> {
+  final TransformationController _controller = TransformationController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _changeScale(double delta) {
+    final current = _controller.value.getMaxScaleOnAxis();
+    final next = (current + delta).clamp(0.8, 6.0);
+    final viewport = MediaQuery.sizeOf(context);
+    final center = Offset(viewport.width / 2, viewport.height / 2);
+    _controller.value = Matrix4.identity()
+      ..translateByDouble(center.dx, center.dy, 0, 1)
+      ..scaleByDouble(next, next, next, 1)
+      ..translateByDouble(-center.dx, -center.dy, 0, 1);
+  }
+
+  void _resetScale() {
+    _controller.value = Matrix4.identity();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final viewport = MediaQuery.sizeOf(context);
+    final isDesktop = viewport.width >= 900;
 
     return Dialog(
-      insetPadding: const EdgeInsets.all(16),
+      insetPadding: EdgeInsets.all(isDesktop ? 28 : 10),
       clipBehavior: Clip.antiAlias,
       child: Container(
         color: cs.surface,
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 820),
+        width: isDesktop ? viewport.width * 0.82 : viewport.width,
+        height: isDesktop ? viewport.height * 0.90 : viewport.height * 0.88,
+        constraints: const BoxConstraints(maxWidth: 1320, maxHeight: 980),
         child: Column(
           children: [
             Padding(
@@ -1206,7 +1267,7 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      fileName,
+                      widget.fileName,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1217,6 +1278,22 @@ class _AttachmentPreviewDialog extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Зменшити',
+                    onPressed: () => _changeScale(-0.25),
+                    icon: const Icon(Icons.remove_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Початковий масштаб',
+                    onPressed: _resetScale,
+                    icon: const Icon(Icons.fit_screen_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Збільшити',
+                    onPressed: () => _changeScale(0.25),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Закрити',
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close_rounded),
                   ),
@@ -1226,11 +1303,14 @@ class _AttachmentPreviewDialog extends StatelessWidget {
             const Divider(height: 1),
             Expanded(
               child: InteractiveViewer(
+                transformationController: _controller,
                 minScale: 0.8,
-                maxScale: 4,
+                maxScale: 6,
+                boundaryMargin: const EdgeInsets.all(240),
+                trackpadScrollCausesScale: true,
                 child: Center(
                   child: Image.memory(
-                    bytes,
+                    widget.bytes,
                     fit: BoxFit.contain,
                     errorBuilder: (_, __, ___) => Padding(
                       padding: const EdgeInsets.all(24),

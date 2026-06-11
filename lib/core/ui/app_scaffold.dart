@@ -57,6 +57,8 @@ class AppScaffold extends StatelessWidget {
         : accent.withValues(alpha: 0.18);
 
     final loc = GoRouterState.of(context).uri.toString();
+    final canAccessProduction =
+        context.watch<AuthProvider>().canAccessProduction;
 
     int selected = 0;
     if (loc.startsWith('/work') || loc.startsWith('/approvals')) selected = 1;
@@ -87,6 +89,7 @@ class AppScaffold extends StatelessWidget {
                       accentSoft: accentSoft,
                       versionBorder: versionBorder,
                       isDark: isDark,
+                      canAccessProduction: canAccessProduction,
                       onLogout: logout,
                     ),
                     Expanded(
@@ -224,6 +227,7 @@ class _DesktopSidebar extends StatelessWidget {
     required this.accentSoft,
     required this.versionBorder,
     required this.isDark,
+    required this.canAccessProduction,
     required this.onLogout,
   });
 
@@ -236,6 +240,7 @@ class _DesktopSidebar extends StatelessWidget {
   final Color accentSoft;
   final Color versionBorder;
   final bool isDark;
+  final bool canAccessProduction;
   final VoidCallback onLogout;
 
   @override
@@ -350,6 +355,19 @@ class _DesktopSidebar extends StatelessWidget {
                     accent: accent,
                     border: border,
                     onTap: () => context.go(item.$1),
+                  ),
+                if (canAccessProduction)
+                  _DesktopNavTile(
+                    path: '/production',
+                    icon: Icons.factory_outlined,
+                    title: 'Виробництво',
+                    subtitle: 'Сировина, розлив і склад',
+                    selected: _isSelected('/production'),
+                    text: text,
+                    sub: sub,
+                    accent: accent,
+                    border: border,
+                    onTap: () => context.go('/production'),
                   ),
               ],
             ),

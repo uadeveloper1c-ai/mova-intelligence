@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/app_version.dart';
@@ -15,7 +16,7 @@ typedef ApprovalPushHandler = void Function({
   String? orgUid,
 });
 
-class PushService {
+class PushService with WidgetsBindingObserver {
   PushService({required ApiClient apiClient}) : _apiClient = apiClient;
 
   final ApiClient _apiClient;
@@ -26,8 +27,6 @@ class PushService {
       MethodChannel('mova_intelligence_app/badge');
 
   static const _prefDeviceId = 'device_id';
-  static const _badgeResetNotificationId = 777001;
-
   bool get _supportsPushPlatform {
     if (kIsWeb) return false;
     return Platform.isAndroid || Platform.isIOS;
@@ -46,6 +45,8 @@ class PushService {
     }
 
     await _initLocalNotifications();
+    WidgetsBinding.instance.addObserver(this);
+    await clearSystemNotifications();
 
     final settings = await _fm.requestPermission(
       alert: true,
@@ -121,26 +122,16 @@ class PushService {
           debugPrint(
               'PushService.clearSystemNotifications iOS badge error: $e');
         }
-
-        const details = NotificationDetails(
-          iOS: DarwinNotificationDetails(
-            presentAlert: false,
-            presentSound: false,
-            presentBadge: false,
-            badgeNumber: 0,
-          ),
-        );
-
-        await _localNotifications.show(
-          _badgeResetNotificationId,
-          '',
-          '',
-          details,
-        );
-        await _localNotifications.cancel(_badgeResetNotificationId);
       }
     } catch (e) {
       debugPrint('PushService.clearSystemNotifications error: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      clearSystemNotifications();
     }
   }
 

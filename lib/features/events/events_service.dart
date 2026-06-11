@@ -12,7 +12,8 @@ class EventsService {
     int limit = 50,
     bool unreadOnly = false,
   }) async {
-    final endpoint = '/events?limit=$limit&unreadOnly=${unreadOnly ? 1 : 0}';
+    final endpoint =
+        '/events/list?limit=$limit&unreadOnly=${unreadOnly ? 1 : 0}';
 
     final http.Response r =
         await _apiClient.sendAuthorizedRequest('GET', endpoint);
@@ -34,11 +35,19 @@ class EventsService {
   Future<void> markRead(List<String> ids) async {
     if (ids.isEmpty) return;
 
+    await _markRead({'ids': ids});
+  }
+
+  Future<void> markAllRead() async {
+    await _markRead({'all': true});
+  }
+
+  Future<void> _markRead(Map<String, dynamic> body) async {
     final r = await _apiClient.sendAuthorizedRequest(
       'POST',
       '/events/mark_read',
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'ids': ids}),
+      body: jsonEncode(body),
     );
 
     if (r.statusCode != 200) {
