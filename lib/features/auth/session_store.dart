@@ -25,12 +25,14 @@ class DeliveryMethod {
 }
 
 class OrgAccess {
+  final String uid;
   final String code;
   final String name;
   final List<DeliveryMethod> deliveryMethods;
   final String? defaultDeliveryMethod;
 
   OrgAccess({
+    this.uid = '',
     required this.code,
     required this.name,
     this.deliveryMethods = const [],
@@ -56,6 +58,12 @@ class OrgAccess {
     }
 
     return OrgAccess(
+      uid: json['uid']?.toString() ??
+          json['Uid']?.toString() ??
+          json['Ссылка']?.toString() ??
+          json['Код']?.toString() ??
+          json['code']?.toString() ??
+          '',
       code: json['Код']?.toString() ?? json['code']?.toString() ?? '',
       name: json['Наименование']?.toString() ?? json['name']?.toString() ?? '',
       deliveryMethods: methods,
@@ -66,6 +74,7 @@ class OrgAccess {
 
   Map<String, dynamic> toJson() {
     return {
+      'uid': uid,
       'Код': code,
       'Наименование': name,
       'СпособыДоставки': deliveryMethods.map((e) => e.toJson()).toList(),

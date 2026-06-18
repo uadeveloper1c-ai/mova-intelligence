@@ -28,6 +28,11 @@ import '../../features/profile/presentation/profile_page.dart';
 import '../../features/production/production_service.dart';
 import '../../features/production/presentation/new_production_request_page.dart';
 import '../../features/production/presentation/production_page.dart';
+import '../../features/production/presentation/production_template_editor_page.dart';
+import '../../features/production/presentation/production_templates_page.dart';
+import '../../features/sales/presentation/customer_order_details_page.dart';
+import '../../features/sales/presentation/customer_order_page.dart';
+import '../../features/sales/presentation/customer_orders_page.dart';
 
 GoRouter createRouter(AuthProvider auth) {
   return GoRouter(
@@ -149,6 +154,24 @@ GoRouter createRouter(AuthProvider auth) {
         builder: (context, state) => const AppScaffold(child: ReportsPage()),
       ),
       GoRoute(
+        path: '/sales/customer-orders',
+        builder: (context, state) =>
+            const AppScaffold(child: CustomerOrdersPage()),
+      ),
+      GoRoute(
+        path: '/sales/customer-orders/:uid',
+        builder: (context, state) => AppScaffold(
+          child: CustomerOrderDetailsPage(
+            uid: state.pathParameters['uid'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/sales/customer-order/new',
+        builder: (context, state) =>
+            const AppScaffold(child: CustomerOrderPage()),
+      ),
+      GoRoute(
         path: '/production',
         builder: (context, state) => const AppScaffold(child: ProductionPage()),
       ),
@@ -167,6 +190,24 @@ GoRouter createRouter(AuthProvider auth) {
             child: NewProductionRequestPage(initialType: type),
           );
         },
+      ),
+      GoRoute(
+        path: '/production/templates',
+        builder: (context, state) =>
+            const AppScaffold(child: ProductionTemplatesPage()),
+      ),
+      GoRoute(
+        path: '/production/templates/new',
+        builder: (context, state) =>
+            const AppScaffold(child: ProductionTemplateEditorPage()),
+      ),
+      GoRoute(
+        path: '/production/templates/:uid',
+        builder: (context, state) => AppScaffold(
+          child: ProductionTemplateEditorPage(
+            uid: state.pathParameters['uid'],
+          ),
+        ),
       ),
     ],
   );

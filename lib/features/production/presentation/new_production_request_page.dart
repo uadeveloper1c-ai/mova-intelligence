@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../auth/session_store.dart';
 import '../production_service.dart';
 
 class NewProductionRequestPage extends StatefulWidget {
@@ -23,6 +24,8 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
   DateTime _requiredDate = DateTime.now();
   List<ProductionReference> _warehouses = const [];
   List<ProductionReference> _catalog = const [];
+  List<ProductionTemplate> _templates = const [];
+  List<SubdivisionAccess> _subdivisions = const [];
   final List<_LineControllers> _lines = [_LineControllers()];
   final _comment = TextEditingController();
   bool _busy = false;
@@ -36,14 +39,38 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
 
   Future<void> _loadReferences() async {
     final service = context.read<ProductionService>();
-    final values = await Future.wait([
-      service.getWarehouses(),
-      service.getCatalog(),
-    ]);
+    List<ProductionReference> warehouses = const [];
+    List<ProductionReference> catalog = const [];
+    List<ProductionTemplate> templates = const [];
+    SessionData? session;
+
+    try {
+      templates = await service.getTemplates();
+    } catch (_) {
+      // Шаблоны загружаются независимо от ручного режима.
+    }
+    try {
+      warehouses = await service.getWarehouses();
+    } catch (_) {
+      // Пустой список блокирует только ручное создание.
+    }
+    try {
+      catalog = await service.getCatalog();
+    } catch (_) {
+      // Каталог не требуется для создания по шаблону.
+    }
+    try {
+      session = await SessionStore.loadSession();
+    } catch (_) {
+      // Подразделение для шаблонного запуска необязательно.
+    }
+
     if (!mounted) return;
     setState(() {
-      _warehouses = values[0];
-      _catalog = values[1];
+      _warehouses = warehouses;
+      _catalog = catalog;
+      _templates = templates;
+      _subdivisions = session?.subdivisions ?? const [];
     });
   }
 
@@ -74,6 +101,183 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
     if (value != null) setState(() => _requiredDate = value);
+  }
+
+  String? get _templateType => switch (_type) {
+        ProductionRequestType.rawMaterial => 'Сырье',
+        ProductionRequestType.bottling => 'Тара',
+        _ => null,
+      };
+
+  Future<void> _useTemplate() async {
+    final templateType = _templateType;
+    final matching = templateType == null
+        ? _templates
+        : _templates
+            .where((template) => template.templateType == templateType)
+            .toList();
+    final templates = matching.isEmpty ? _templates : matching;
+    if (templates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Спочатку створіть виробничий шаблон')),
+      );
+      return;
+    }
+
+    final selected = await showDialog<ProductionTemplate>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Оберіть виробничий шаблон'),
+        content: SizedBox(
+          width: 680,
+          height: 440,
+          child: ListView.separated(
+            itemCount: templates.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (context, index) {
+              final template = templates[index];
+              return ListTile(
+                leading: const Icon(Icons.receipt_long_outlined),
+                title: Text(template.name),
+                subtitle: Text(
+                  '${template.organizationName} · ${template.drinkType} · '
+                  'позицій: ${template.lines.length}',
+                ),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Navigator.pop(context, template),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Скасувати'),
+          ),
+        ],
+      ),
+    );
+    if (selected != null && mounted) await _createFromTemplate(selected);
+  }
+
+  Future<void> _createFromTemplate(ProductionTemplate template) async {
+    final volume = TextEditingController(
+      text: template.baseVolume.toStringAsFixed(
+        template.baseVolume == template.baseVolume.roundToDouble() ? 0 : 2,
+      ),
+    );
+    final comment = TextEditingController();
+    var date = _requiredDate;
+    String? subdivisionUid;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text('Створити переміщення за шаблоном «${template.name}»'),
+          content: SizedBox(
+            width: 500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: volume,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Обсяг'),
+                ),
+                const SizedBox(height: 12),
+                if (_subdivisions.isNotEmpty) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: subdivisionUid,
+                    decoration: const InputDecoration(labelText: 'Підрозділ'),
+                    items: [
+                      for (final subdivision in _subdivisions)
+                        DropdownMenuItem(
+                          value: subdivision.uid,
+                          child: Text(subdivision.name),
+                        ),
+                    ],
+                    onChanged: (value) =>
+                        setDialogState(() => subdivisionUid = value),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Бажана дата'),
+                  subtitle: Text(_formatDate(date)),
+                  trailing: const Icon(Icons.calendar_month_outlined),
+                  onTap: () async {
+                    final selected = await showDatePicker(
+                      context: context,
+                      initialDate: date,
+                      firstDate:
+                          DateTime.now().subtract(const Duration(days: 1)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (selected != null) {
+                      setDialogState(() => date = selected);
+                    }
+                  },
+                ),
+                TextField(
+                  controller: comment,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(labelText: 'Коментар'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Скасувати'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(context, true),
+              icon: const Icon(Icons.send_rounded),
+              label: const Text('Створити переміщення'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed != true || !mounted) {
+      volume.dispose();
+      comment.dispose();
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final parsed = double.tryParse(volume.text.replaceAll(',', '.'));
+      if (parsed == null || parsed <= 0) {
+        throw Exception('Вкажіть коректний обсяг');
+      }
+      await context.read<ProductionService>().createFromTemplate(
+            templateUid: template.uid,
+            volume: parsed,
+            requiredDate: date,
+            subdivisionUid: subdivisionUid ?? '',
+            comment: comment.text.trim(),
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Переміщення за шаблоном створено')),
+      );
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не вдалося створити переміщення: $e')),
+        );
+      }
+    } finally {
+      volume.dispose();
+      comment.dispose();
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _submit() async {
@@ -192,6 +396,27 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  _TemplateActionPanel(
+                    templatesCount: _templates.length,
+                    busy: _busy,
+                    onUseTemplate: _useTemplate,
+                    onManageTemplates: () =>
+                        context.push('/production/templates'),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Text(
+                        'Ручне заповнення',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(child: Divider(color: border)),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
                   if (_warehouses.isEmpty)
                     Container(
                       width: double.infinity,
@@ -210,8 +435,8 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Склади ще не підключені до API 1С. '
-                              'Створення замовлення буде доступне після налаштування довідника складів.',
+                              'Ручне створення поки недоступне. '
+                              'Використайте виробничий шаблон вище.',
                             ),
                           ),
                         ],
@@ -339,6 +564,105 @@ class _NewProductionRequestPageState extends State<NewProductionRequestPage> {
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}.'
         '${date.month.toString().padLeft(2, '0')}.${date.year}';
+  }
+}
+
+class _TemplateActionPanel extends StatelessWidget {
+  const _TemplateActionPanel({
+    required this.templatesCount,
+    required this.busy,
+    required this.onUseTemplate,
+    required this.onManageTemplates,
+  });
+
+  final int templatesCount;
+  final bool busy;
+  final VoidCallback onUseTemplate;
+  final VoidCallback onManageTemplates;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: .1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: cs.primary.withValues(alpha: .42)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final content = Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: .14),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.receipt_long_outlined, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Створити за виробничим шаблоном',
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Склади, товари та кількість заповняться автоматично. '
+                      'Доступно шаблонів: $templatesCount',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: .68),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+          final actions = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                tooltip: 'Керування шаблонами',
+                onPressed: onManageTemplates,
+                icon: const Icon(Icons.settings_outlined),
+              ),
+              const SizedBox(width: 6),
+              FilledButton.icon(
+                onPressed: busy ? null : onUseTemplate,
+                icon: const Icon(Icons.auto_awesome_outlined),
+                label: const Text('Використати шаблон'),
+              ),
+            ],
+          );
+          if (constraints.maxWidth < 760) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                content,
+                const SizedBox(height: 14),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: content),
+              const SizedBox(width: 16),
+              actions,
+            ],
+          );
+        },
+      ),
+    );
   }
 }
 

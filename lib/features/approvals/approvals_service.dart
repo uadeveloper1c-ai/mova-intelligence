@@ -27,6 +27,7 @@ class SalaryStatementOption {
   final String name;
   final String subdivisionUid;
   final String subdivisionName;
+  final String paymentChannel;
   final double amount;
 
   const SalaryStatementOption({
@@ -34,6 +35,7 @@ class SalaryStatementOption {
     required this.name,
     this.subdivisionUid = '',
     this.subdivisionName = '',
+    this.paymentChannel = '',
     this.amount = 0,
   });
 
@@ -61,6 +63,11 @@ class SalaryStatementOption {
         'subdivision_name',
         'ПодразделениеНаименование',
         'ВедомостьПодразделениеНазвание',
+      ]),
+      paymentChannel: _firstJsonString(json, const [
+        'paymentChannel',
+        'payment_channel',
+        'ВидВыплаты',
       ]),
       amount: _parseJsonDouble(
         json['amount'] ?? json['Сумма'] ?? json['ВедомостьСумма'],

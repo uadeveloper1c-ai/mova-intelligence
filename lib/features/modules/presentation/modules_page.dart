@@ -94,6 +94,14 @@ class ModulesPage extends StatelessWidget {
           onTap: () => context.push('/invoices/recognize'),
         ),
         const SizedBox(height: 12),
+        _ModuleCard(
+          title: 'Замовлення клієнтів',
+          subtitle: 'Реєстр, фільтри, дебіторка, ціни та товари',
+          icon: Icons.receipt_long_outlined,
+          accent: const Color(0xFF06B6D4),
+          onTap: () => context.push('/sales/customer-orders'),
+        ),
+        const SizedBox(height: 12),
         if (auth.canAccessProduction) ...[
           _ModuleCard(
             title: 'Виробництво',

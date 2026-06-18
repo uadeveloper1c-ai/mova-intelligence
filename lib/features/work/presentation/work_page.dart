@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -24,6 +26,8 @@ class _WorkPageState extends State<WorkPage> {
   PaymentRequestStatus? _statusFilter;
   String _contractorQuery = '';
   String? _orgCodeFilter;
+  double? _amountFrom;
+  double? _amountTo;
   List<OrgAccess> _orgs = const [];
   String? _lastAppliedRouteSignature;
   Set<String> _incomingRequestIds = const {};
@@ -32,6 +36,8 @@ class _WorkPageState extends State<WorkPage> {
 
   late Future<List<PaymentRequest>> _future;
   final TextEditingController _contractorCtrl = TextEditingController();
+  final TextEditingController _amountFromCtrl = TextEditingController();
+  final TextEditingController _amountToCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -49,6 +55,8 @@ class _WorkPageState extends State<WorkPage> {
   @override
   void dispose() {
     _contractorCtrl.dispose();
+    _amountFromCtrl.dispose();
+    _amountToCtrl.dispose();
     super.dispose();
   }
 
@@ -214,7 +222,8 @@ class _WorkPageState extends State<WorkPage> {
         _range != null ||
         _statusFilter != null ||
         (_orgCodeFilter?.trim().isNotEmpty ?? false) ||
-        _contractorQuery.trim().isNotEmpty;
+        _contractorQuery.trim().isNotEmpty ||
+        (kIsWeb && (_amountFrom != null || _amountTo != null));
   }
 
   String get _periodShort {
@@ -274,6 +283,21 @@ class _WorkPageState extends State<WorkPage> {
     }
 
     return code;
+  }
+
+  String get _amountShort {
+    String format(double value) {
+      return value % 1 == 0
+          ? value.toStringAsFixed(0)
+          : value.toStringAsFixed(2);
+    }
+
+    if (_amountFrom != null && _amountTo != null) {
+      return '${format(_amountFrom!)}–${format(_amountTo!)}';
+    }
+    if (_amountFrom != null) return '= ${format(_amountFrom!)}';
+    if (_amountTo != null) return 'до ${format(_amountTo!)}';
+    return 'Усі';
   }
 
   String _orgLabelForRequest(PaymentRequest r) {
@@ -370,6 +394,17 @@ class _WorkPageState extends State<WorkPage> {
           .where(
               (r) => r.contractorName.toLowerCase().contains(contractorQuery))
           .toList();
+    }
+
+    if (kIsWeb && _amountFrom != null && _amountTo == null) {
+      items =
+          items.where((r) => (r.amount - _amountFrom!).abs() < 0.005).toList();
+    } else if (kIsWeb && _amountFrom != null) {
+      items = items.where((r) => r.amount >= _amountFrom!).toList();
+    }
+
+    if (kIsWeb && _amountTo != null) {
+      items = items.where((r) => r.amount <= _amountTo!).toList();
     }
 
     return items;
@@ -525,6 +560,10 @@ class _WorkPageState extends State<WorkPage> {
       _orgCodeFilter = null;
       _contractorQuery = '';
       _contractorCtrl.text = '';
+      _amountFrom = null;
+      _amountTo = null;
+      _amountFromCtrl.clear();
+      _amountToCtrl.clear();
       _incomingOnly = false;
     });
     final future = _loadRequests(forceIncomingRefresh: true);
@@ -710,6 +749,100 @@ class _WorkPageState extends State<WorkPage> {
       setState(() => _orgCodeFilter =
           picked?.trim().isEmpty ?? true ? null : picked?.trim());
     }
+  }
+
+  Future<void> _pickAmount() async {
+    String initialValue(double? value) {
+      if (value == null) return '';
+      return value % 1 == 0
+          ? value.toStringAsFixed(0)
+          : value.toStringAsFixed(2);
+    }
+
+    _amountFromCtrl.text = initialValue(_amountFrom);
+    _amountToCtrl.text = initialValue(_amountTo);
+
+    final picked = await showDialog<({double? from, double? to})>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+
+        double? parse(TextEditingController controller) {
+          return double.tryParse(controller.text.trim().replaceAll(',', '.'));
+        }
+
+        return AlertDialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text('Фільтр за сумою'),
+          content: SizedBox(
+            width: 360,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _amountFromCtrl,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'Точна сума / від, ₴',
+                      helperText: 'Без поля «до» — точний збіг',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _amountToCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                    ],
+                    decoration: const InputDecoration(
+                      labelText: 'До, ₴',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop((from: null, to: null)),
+              child: const Text('Очистити'),
+            ),
+            FilledButton(
+              onPressed: () {
+                var from = parse(_amountFromCtrl);
+                var to = parse(_amountToCtrl);
+                if (from != null && to != null && from > to) {
+                  final previousFrom = from;
+                  from = to;
+                  to = previousFrom;
+                }
+                Navigator.of(ctx).pop((from: from, to: to));
+              },
+              child: const Text('Застосувати'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() {
+      _amountFrom = picked.from;
+      _amountTo = picked.to;
+    });
   }
 
   Future<void> _openSectionPicker(List<PaymentRequest> approvals) async {
@@ -980,11 +1113,13 @@ class _WorkPageState extends State<WorkPage> {
                         onPeriod: _pickRange,
                         onOrg: _pickOrg,
                         onContractor: _pickContractor,
+                        onAmount: _pickAmount,
                         onClearFilters: _clearApprovalFilters,
                         status: _statusShort,
                         period: _periodShort,
                         org: _orgShort,
                         contractor: _contractorShort,
+                        amount: _amountShort,
                         showOrgFilter: _orgs.length > 1,
                         hasFilters: _hasAnyApprovalFilter,
                         border: border,
@@ -1296,11 +1431,13 @@ class _DesktopWorkShell extends StatelessWidget {
     required this.onPeriod,
     required this.onOrg,
     required this.onContractor,
+    required this.onAmount,
     required this.onClearFilters,
     required this.status,
     required this.period,
     required this.org,
     required this.contractor,
+    required this.amount,
     required this.showOrgFilter,
     required this.hasFilters,
     required this.border,
@@ -1335,11 +1472,13 @@ class _DesktopWorkShell extends StatelessWidget {
   final VoidCallback onPeriod;
   final VoidCallback onOrg;
   final VoidCallback onContractor;
+  final VoidCallback onAmount;
   final VoidCallback onClearFilters;
   final String status;
   final String period;
   final String org;
   final String contractor;
+  final String amount;
   final bool showOrgFilter;
   final bool hasFilters;
   final Color border;
@@ -1415,12 +1554,14 @@ class _DesktopWorkShell extends StatelessWidget {
             period: period,
             org: org,
             contractor: contractor,
+            amount: amount,
             showOrgFilter: showOrgFilter,
             hasFilters: hasFilters,
             onStatus: onStatus,
             onPeriod: onPeriod,
             onOrg: onOrg,
             onContractor: onContractor,
+            onAmount: onAmount,
             onClear: onClearFilters,
           ),
           const SizedBox(height: 14),
@@ -1790,12 +1931,14 @@ class _DesktopFilterBar extends StatelessWidget {
     required this.period,
     required this.org,
     required this.contractor,
+    required this.amount,
     required this.showOrgFilter,
     required this.hasFilters,
     required this.onStatus,
     required this.onPeriod,
     required this.onOrg,
     required this.onContractor,
+    required this.onAmount,
     required this.onClear,
   });
 
@@ -1803,12 +1946,14 @@ class _DesktopFilterBar extends StatelessWidget {
   final String period;
   final String org;
   final String contractor;
+  final String amount;
   final bool showOrgFilter;
   final bool hasFilters;
   final VoidCallback onStatus;
   final VoidCallback onPeriod;
   final VoidCallback onOrg;
   final VoidCallback onContractor;
+  final VoidCallback onAmount;
   final VoidCallback onClear;
 
   @override
@@ -1849,6 +1994,15 @@ class _DesktopFilterBar extends StatelessWidget {
             value: period,
             onTap: onPeriod,
           ),
+          if (kIsWeb) ...[
+            const SizedBox(width: 8),
+            _DesktopSearchChip(
+              icon: Icons.payments_outlined,
+              label: 'Сума',
+              value: amount,
+              onTap: onAmount,
+            ),
+          ],
           if (showOrgFilter) ...[
             const SizedBox(width: 8),
             Expanded(

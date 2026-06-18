@@ -17,6 +17,7 @@ import 'features/approvals/approvals_service.dart';
 import 'features/events/events_service.dart';
 import 'features/notifications/notifications_service.dart';
 import 'features/production/production_service.dart';
+import 'features/sales/sales_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -73,6 +74,7 @@ void main() async {
         ),
         Provider<ProductionService>(
             create: (_) => ProductionService(apiClient)),
+        Provider<SalesService>(create: (_) => SalesService(apiClient)),
       ],
       child: MyApp(router: router),
     ),

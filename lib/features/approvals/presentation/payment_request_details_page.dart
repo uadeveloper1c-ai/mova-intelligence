@@ -819,11 +819,13 @@ class _PaymentRequestDetailsPageState extends State<PaymentRequestDetailsPage> {
                     'Відомість',
                     _labelOrUid(r.statementName, r.statementUid),
                   ),
-                  _row(
-                    context,
-                    'Каса',
-                    _labelOrUid(r.cashboxName, r.cashboxUid),
-                  ),
+                  if (r.cashboxName.trim().isNotEmpty ||
+                      r.cashboxUid.trim().isNotEmpty)
+                    _row(
+                      context,
+                      'Каса',
+                      _labelOrUid(r.cashboxName, r.cashboxUid),
+                    ),
                 ],
                 if (r.operationType == PaymentOperationType.taxPayment)
                   _row(

@@ -92,6 +92,27 @@ class _NewRequestPageState extends State<NewRequestPage> {
       _operationType == PaymentOperationType.otherExpenses;
   bool get _isSalaryPayment =>
       _operationType == PaymentOperationType.salaryPayment;
+  bool get _submitBlocked =>
+      _sending || (_isSalaryPayment && _loadingSalaryMeta);
+
+  SalaryStatementOption? get _selectedSalaryStatement =>
+      _statements.where((s) => s.uid == _statementUid).firstOrNull;
+
+  bool get _salaryStatementRequiresCashbox {
+    final statement = _selectedSalaryStatement;
+    if (statement == null) return false;
+
+    final name = statement.name.trim().toLowerCase();
+    if (name.contains('в банк')) return false;
+    if (name.contains('в кас')) return true;
+
+    final channel = statement.paymentChannel.trim().toLowerCase();
+    if (channel.isNotEmpty) return channel == 'cash';
+
+    // Совместимость с API без поля paymentChannel.
+    return false;
+  }
+
   bool get _isTaxPayment => _operationType == PaymentOperationType.taxPayment;
 
   String get _pageTitle {
@@ -459,7 +480,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
         if (!_statements.any((s) => s.uid == _statementUid)) {
           _statementUid = _statements.isNotEmpty ? _statements.first.uid : null;
         }
-        if (!_cashboxes.any((c) => c.uid == _cashboxUid)) {
+        if (!_salaryStatementRequiresCashbox) {
+          _cashboxUid = null;
+        } else if (!_cashboxes.any((c) => c.uid == _cashboxUid)) {
           _cashboxUid = _cashboxes.isNotEmpty ? _cashboxes.first.uid : null;
         }
       });
@@ -887,6 +910,11 @@ class _NewRequestPageState extends State<NewRequestPage> {
   }
 
   Future<void> _submit({PaymentRequestStatus? createStatus}) async {
+    if (_isSalaryPayment && _loadingSalaryMeta) {
+      setState(() => _error = 'Зачекайте, поки завантажаться відомості');
+      return;
+    }
+
     final valid = _formKey.currentState?.validate() ?? false;
     if (!valid) return;
 
@@ -906,7 +934,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
       return;
     }
 
-    if (_isSalaryPayment && (_cashboxUid == null || _cashboxUid!.isEmpty)) {
+    if (_isSalaryPayment &&
+        _salaryStatementRequiresCashbox &&
+        (_cashboxUid == null || _cashboxUid!.isEmpty)) {
       setState(() => _error = 'Оберіть касу');
       return;
     }
@@ -943,7 +973,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
           operationType: _operationType,
           subdivisionUid: _subdivisionUid,
           statementUid: _isSalaryPayment ? _statementUid : null,
-          cashboxUid: _isSalaryPayment ? _cashboxUid : null,
+          cashboxUid: _isSalaryPayment && _salaryStatementRequiresCashbox
+              ? _cashboxUid
+              : null,
           taxUid: _isTaxPayment ? _taxUid : null,
           vendorName: vendorName,
           vendorCode: vendorCode,
@@ -964,7 +996,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
           operationType: _operationType,
           subdivisionUid: _subdivisionUid,
           statementUid: _isSalaryPayment ? _statementUid : null,
-          cashboxUid: _isSalaryPayment ? _cashboxUid : null,
+          cashboxUid: _isSalaryPayment && _salaryStatementRequiresCashbox
+              ? _cashboxUid
+              : null,
           taxUid: _isTaxPayment ? _taxUid : null,
           vendorName: vendorName,
           vendorCode: vendorCode,
@@ -1750,7 +1784,20 @@ class _NewRequestPageState extends State<NewRequestPage> {
                                         items: statementItems,
                                         dropdownColor: ui.panel,
                                         onChanged: (v) {
-                                          setState(() => _statementUid = v);
+                                          setState(() {
+                                            _statementUid = v;
+                                            if (!_salaryStatementRequiresCashbox) {
+                                              _cashboxUid = null;
+                                            } else if (!_cashboxes.any(
+                                              (cashbox) =>
+                                                  cashbox.uid == _cashboxUid,
+                                            )) {
+                                              _cashboxUid =
+                                                  _cashboxes.isNotEmpty
+                                                      ? _cashboxes.first.uid
+                                                      : null;
+                                            }
+                                          });
                                           _applyStatementDefaults(
                                             forceAmount: true,
                                           );
@@ -1796,45 +1843,48 @@ class _NewRequestPageState extends State<NewRequestPage> {
                                         ),
                                       ],
                                       const SizedBox(height: 12),
-                                      DropdownButtonFormField<String>(
-                                        initialValue: _cashboxUid,
-                                        items: cashboxItems,
-                                        dropdownColor: ui.panel,
-                                        onChanged: (v) =>
-                                            setState(() => _cashboxUid = v),
-                                        validator: (v) => _isSalaryPayment &&
-                                                (v == null || v.isEmpty)
-                                            ? 'Оберіть касу'
-                                            : null,
-                                        decoration: _dec(
-                                          context,
-                                          label: 'Каса',
-                                          hint: _loadingSalaryMeta
-                                              ? 'Завантаження...'
-                                              : 'Оберіть касу',
-                                          icon: Icons
-                                              .account_balance_wallet_rounded,
-                                        ),
-                                        style: TextStyle(
-                                          color: ui.text,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                        iconEnabledColor: ui.sub,
-                                      ),
-                                      if (_salaryMetaError == null &&
-                                          !_loadingSalaryMeta &&
-                                          _cashboxes.isEmpty) ...[
-                                        const SizedBox(height: 6),
-                                        Text(
-                                          'Немає доступних кас для обраної організації',
-                                          style: TextStyle(
-                                            color: ui.sub,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
+                                      if (_salaryStatementRequiresCashbox) ...[
+                                        DropdownButtonFormField<String>(
+                                          initialValue: _cashboxUid,
+                                          items: cashboxItems,
+                                          dropdownColor: ui.panel,
+                                          onChanged: (v) =>
+                                              setState(() => _cashboxUid = v),
+                                          validator: (v) =>
+                                              _salaryStatementRequiresCashbox &&
+                                                      (v == null || v.isEmpty)
+                                                  ? 'Оберіть касу'
+                                                  : null,
+                                          decoration: _dec(
+                                            context,
+                                            label: 'Каса',
+                                            hint: _loadingSalaryMeta
+                                                ? 'Завантаження...'
+                                                : 'Оберіть касу',
+                                            icon: Icons
+                                                .account_balance_wallet_rounded,
                                           ),
+                                          style: TextStyle(
+                                            color: ui.text,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                          iconEnabledColor: ui.sub,
                                         ),
+                                        if (_salaryMetaError == null &&
+                                            !_loadingSalaryMeta &&
+                                            _cashboxes.isEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            'Немає доступних кас для обраної організації',
+                                            style: TextStyle(
+                                              color: ui.sub,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
                                       ],
-                                      const SizedBox(height: 12),
                                     ],
                                     if (_isTaxPayment) ...[
                                       DropdownButtonFormField<String>(
@@ -2324,8 +2374,9 @@ class _NewRequestPageState extends State<NewRequestPage> {
                                     SizedBox(
                                       width: double.infinity,
                                       child: FilledButton.icon(
-                                        onPressed:
-                                            _sending ? null : () => _submit(),
+                                        onPressed: _submitBlocked
+                                            ? null
+                                            : () => _submit(),
                                         icon: _sending
                                             ? const SizedBox(
                                                 width: 16,
@@ -2361,7 +2412,7 @@ class _NewRequestPageState extends State<NewRequestPage> {
                                       SizedBox(
                                         width: double.infinity,
                                         child: OutlinedButton.icon(
-                                          onPressed: _sending
+                                          onPressed: _submitBlocked
                                               ? null
                                               : () => _submit(
                                                     createStatus:
