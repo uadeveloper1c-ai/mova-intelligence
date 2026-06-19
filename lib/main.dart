@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -19,86 +22,158 @@ import 'features/notifications/notifications_service.dart';
 import 'features/production/production_service.dart';
 import 'features/sales/sales_service.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows) {
-    await Firebase.initializeApp();
-  }
-  await Hive.initFlutter();
-  await AppVersion.init();
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      debugPrint('FlutterError: ${details.exceptionAsString()}');
+      debugPrint('${details.stack}');
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      debugPrint('PlatformDispatcher error: $error');
+      debugPrint('$stack');
+      return true;
+    };
 
-  final apiClient = ApiClient();
-  await apiClient.init();
+    await _startupStep('Hive.initFlutter', Hive.initFlutter);
+    await _startupStep('AppVersion.init', AppVersion.init);
 
-  final themeController = ThemeController();
-  await themeController.load();
+    final apiClient = ApiClient();
+    await _startupStep('ApiClient.init', apiClient.init);
 
-  final pushService = PushService(apiClient: apiClient);
-  await pushService.init();
+    final themeController = ThemeController();
+    await _startupStep('ThemeController.load', themeController.load);
 
-  final auth = AuthProvider(
-    apiClient: apiClient,
-    pushService: pushService,
-  );
+    final pushService = PushService(apiClient: apiClient);
 
-  final GoRouter router = createRouter(auth);
-
-  pushService.onApprovalPush = ({
-    required String type,
-    required String requestUid,
-    String? orgUid,
-  }) {
-    debugPrint(
-        'Approval push: type=$type requestUid=$requestUid orgUid=$orgUid');
-
-    pushService.clearSystemNotifications();
-    router.pushNamed(
-      'approvalRequestDetails',
-      pathParameters: {'uid': requestUid},
-      queryParameters: const {'actions': '1'},
+    final auth = AuthProvider(
+      apiClient: apiClient,
+      pushService: pushService,
     );
-  };
 
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider<AuthProvider>.value(value: auth),
-        ChangeNotifierProvider<ThemeController>.value(value: themeController),
-        Provider<ApiClient>.value(value: apiClient),
-        Provider<PushService>.value(value: pushService),
-        Provider<EventsService>(create: (_) => EventsService(apiClient)),
-        Provider<ApprovalsService>(create: (_) => ApprovalsService(apiClient)),
-        Provider<NotificationsService>(
-          create: (_) => NotificationsService(apiClient),
-        ),
-        Provider<ProductionService>(
-            create: (_) => ProductionService(apiClient)),
-        Provider<SalesService>(create: (_) => SalesService(apiClient)),
-      ],
-      child: MyApp(router: router),
-    ),
-  );
+    final GoRouter router = createRouter(auth);
 
-  () async {
-    await auth.loadUser();
-    if (auth.isLoggedIn) {
-      await pushService.clearSystemNotifications();
-      await pushService.registerCurrentDevice();
+    pushService.onApprovalPush = ({
+      required String type,
+      required String requestUid,
+      String? orgUid,
+    }) {
+      debugPrint(
+          'Approval push: type=$type requestUid=$requestUid orgUid=$orgUid');
 
-      final pendingId = pushService.initialApprovalRequestId;
-      if (pendingId != null && pendingId.isNotEmpty) {
-        debugPrint('main: pending approval request $pendingId, navigating now');
-        await pushService.clearSystemNotifications();
-        router.pushNamed(
-          'approvalRequestDetails',
-          pathParameters: {'uid': pendingId},
-          queryParameters: const {'actions': '1'},
-        );
-        pushService.initialApprovalRequestId = null;
-      }
+      pushService.clearSystemNotifications();
+      router.pushNamed(
+        'approvalRequestDetails',
+        pathParameters: {'uid': requestUid},
+        queryParameters: const {'actions': '1'},
+      );
+    };
+
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: auth),
+          ChangeNotifierProvider<ThemeController>.value(value: themeController),
+          Provider<ApiClient>.value(value: apiClient),
+          Provider<PushService>.value(value: pushService),
+          Provider<EventsService>(create: (_) => EventsService(apiClient)),
+          Provider<ApprovalsService>(
+              create: (_) => ApprovalsService(apiClient)),
+          Provider<NotificationsService>(
+            create: (_) => NotificationsService(apiClient),
+          ),
+          Provider<ProductionService>(
+              create: (_) => ProductionService(apiClient)),
+          Provider<SalesService>(create: (_) => SalesService(apiClient)),
+        ],
+        child: MyApp(router: router),
+      ),
+    );
+
+    unawaited(_afterFirstFrameStartup(
+      auth: auth,
+      pushService: pushService,
+      router: router,
+    ));
+  }, (error, stack) {
+    debugPrint('Uncaught zone error: $error');
+    debugPrint('$stack');
+  });
+}
+
+Future<void> _afterFirstFrameStartup({
+  required AuthProvider auth,
+  required PushService pushService,
+  required GoRouter router,
+}) async {
+  await WidgetsBinding.instance.endOfFrame;
+
+  var pushReady = false;
+  if (!kIsWeb && defaultTargetPlatform != TargetPlatform.windows) {
+    pushReady = await _startupStep(
+      'Firebase.initializeApp',
+      Firebase.initializeApp,
+      timeout: const Duration(seconds: 8),
+    );
+    if (pushReady) {
+      pushReady = await _startupStep(
+        'PushService.init',
+        pushService.init,
+        timeout: const Duration(seconds: 8),
+      );
     }
-  }();
+  }
+
+  await _startupStep('AuthProvider.loadUser', auth.loadUser);
+  if (auth.isLoggedIn) {
+    if (pushReady) {
+      await _startupStep(
+        'PushService.clearSystemNotifications',
+        pushService.clearSystemNotifications,
+      );
+      await _startupStep(
+        'PushService.registerCurrentDevice',
+        pushService.registerCurrentDevice,
+        timeout: const Duration(seconds: 8),
+      );
+    }
+
+    final pendingId = pushService.initialApprovalRequestId;
+    if (pendingId != null && pendingId.isNotEmpty) {
+      debugPrint('main: pending approval request $pendingId, navigating now');
+      if (pushReady) {
+        await _startupStep(
+          'PushService.clearSystemNotifications.beforeNavigation',
+          pushService.clearSystemNotifications,
+        );
+      }
+      router.pushNamed(
+        'approvalRequestDetails',
+        pathParameters: {'uid': pendingId},
+        queryParameters: const {'actions': '1'},
+      );
+      pushService.initialApprovalRequestId = null;
+    }
+  }
+}
+
+Future<bool> _startupStep(
+  String name,
+  Future<void> Function() action, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
+  try {
+    debugPrint('Startup[$name]: begin');
+    await action().timeout(timeout);
+    debugPrint('Startup[$name]: ok');
+    return true;
+  } catch (e, stack) {
+    debugPrint('Startup[$name]: failed: $e');
+    debugPrint('$stack');
+    return false;
+  }
 }
 
 class MyApp extends StatelessWidget {
