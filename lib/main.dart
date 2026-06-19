@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +37,6 @@ void main() async {
   await themeController.load();
 
   final pushService = PushService(apiClient: apiClient);
-  await pushService.init();
 
   final auth = AuthProvider(
     apiClient: apiClient,
@@ -80,25 +81,50 @@ void main() async {
     ),
   );
 
-  () async {
-    await auth.loadUser();
-    if (auth.isLoggedIn) {
-      await pushService.clearSystemNotifications();
-      await pushService.registerCurrentDevice();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_finishStartupAfterFirstFrame(
+      auth: auth,
+      pushService: pushService,
+      router: router,
+    ));
+  });
+}
 
-      final pendingId = pushService.initialApprovalRequestId;
-      if (pendingId != null && pendingId.isNotEmpty) {
-        debugPrint('main: pending approval request $pendingId, navigating now');
-        await pushService.clearSystemNotifications();
-        router.pushNamed(
-          'approvalRequestDetails',
-          pathParameters: {'uid': pendingId},
-          queryParameters: const {'actions': '1'},
-        );
-        pushService.initialApprovalRequestId = null;
-      }
-    }
-  }();
+Future<void> _finishStartupAfterFirstFrame({
+  required AuthProvider auth,
+  required PushService pushService,
+  required GoRouter router,
+}) async {
+  try {
+    await pushService.init().timeout(const Duration(seconds: 8));
+  } on TimeoutException {
+    debugPrint('main: PushService.init timed out, continuing startup');
+  } catch (e) {
+    debugPrint('main: PushService.init error: $e');
+  }
+
+  await auth.loadUser();
+  if (!auth.isLoggedIn) return;
+
+  await pushService.clearSystemNotifications();
+
+  try {
+    await pushService.registerCurrentDevice();
+  } catch (e) {
+    debugPrint('main: registerCurrentDevice error: $e');
+  }
+
+  final pendingId = pushService.initialApprovalRequestId;
+  if (pendingId != null && pendingId.isNotEmpty) {
+    debugPrint('main: pending approval request $pendingId, navigating now');
+    await pushService.clearSystemNotifications();
+    router.pushNamed(
+      'approvalRequestDetails',
+      pathParameters: {'uid': pendingId},
+      queryParameters: const {'actions': '1'},
+    );
+    pushService.initialApprovalRequestId = null;
+  }
 }
 
 class MyApp extends StatelessWidget {

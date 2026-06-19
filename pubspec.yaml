@@ -1,6 +1,6 @@
 name: mova_intelligence_app
 description: Приложение MOVA intelligence
-version: 1.3.4+30
+version: 1.3.5+32
 publish_to: "none"
 
 environment:
