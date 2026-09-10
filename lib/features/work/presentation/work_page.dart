@@ -25,10 +25,12 @@ class _WorkPageState extends State<WorkPage> {
   DateTimeRange? _range;
   PaymentRequestStatus? _statusFilter;
   String _contractorQuery = '';
+  String _authorFilter = '';
   String? _orgCodeFilter;
   double? _amountFrom;
   double? _amountTo;
   List<OrgAccess> _orgs = const [];
+  List<String> _authors = const [];
   String? _lastAppliedRouteSignature;
   Set<String> _incomingRequestIds = const {};
   final Set<String> _actingRequestIds = {};
@@ -131,6 +133,20 @@ class _WorkPageState extends State<WorkPage> {
     final result = byId.values.toList()
       ..sort((a, b) => b.requestDate.compareTo(a.requestDate));
 
+    final authorsByKey = <String, String>{};
+    for (final request in result) {
+      final author = request.requesterName?.trim() ?? '';
+      if (author.isNotEmpty) {
+        authorsByKey.putIfAbsent(author.toLowerCase(), () => author);
+      }
+    }
+    _authors = authorsByKey.values.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (_authorFilter.isNotEmpty &&
+        !_authors.any((author) => author == _authorFilter)) {
+      _authorFilter = '';
+    }
+
     return result;
   }
 
@@ -223,6 +239,7 @@ class _WorkPageState extends State<WorkPage> {
         _statusFilter != null ||
         (_orgCodeFilter?.trim().isNotEmpty ?? false) ||
         _contractorQuery.trim().isNotEmpty ||
+        (kIsWeb && _authorFilter.isNotEmpty) ||
         (kIsWeb && (_amountFrom != null || _amountTo != null));
   }
 
@@ -284,6 +301,8 @@ class _WorkPageState extends State<WorkPage> {
 
     return code;
   }
+
+  String get _authorShort => _authorFilter.isEmpty ? 'Усі' : _authorFilter;
 
   String get _amountShort {
     String format(double value) {
@@ -393,6 +412,13 @@ class _WorkPageState extends State<WorkPage> {
       items = items
           .where(
               (r) => r.contractorName.toLowerCase().contains(contractorQuery))
+          .toList();
+    }
+
+    if (kIsWeb && _authorFilter.isNotEmpty) {
+      final author = _authorFilter.toLowerCase();
+      items = items
+          .where((r) => (r.requesterName ?? '').trim().toLowerCase() == author)
           .toList();
     }
 
@@ -559,6 +585,7 @@ class _WorkPageState extends State<WorkPage> {
       _statusFilter = null;
       _orgCodeFilter = null;
       _contractorQuery = '';
+      _authorFilter = '';
       _contractorCtrl.text = '';
       _amountFrom = null;
       _amountTo = null;
@@ -749,6 +776,53 @@ class _WorkPageState extends State<WorkPage> {
       setState(() => _orgCodeFilter =
           picked?.trim().isEmpty ?? true ? null : picked?.trim());
     }
+  }
+
+  Future<void> _pickAuthor() async {
+    if (_authors.isEmpty) return;
+
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final cs = Theme.of(ctx).colorScheme;
+        return AlertDialog(
+          backgroundColor: cs.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text('Автор заявки'),
+          content: SizedBox(
+            width: 420,
+            height: MediaQuery.sizeOf(ctx).height * 0.6,
+            child: ListView(
+              children: [
+                _StatusPickTile(
+                  label: 'Усі',
+                  color: cs.primary,
+                  selected: _authorFilter.isEmpty,
+                  onTap: () => Navigator.of(ctx).pop('__ALL__'),
+                ),
+                const SizedBox(height: 6),
+                ..._authors.map(
+                  (author) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _StatusPickTile(
+                      label: author,
+                      color: cs.primary,
+                      selected: _authorFilter == author,
+                      onTap: () => Navigator.of(ctx).pop(author),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() => _authorFilter = picked == '__ALL__' ? '' : picked);
   }
 
   Future<void> _pickAmount() async {
@@ -1113,12 +1187,14 @@ class _WorkPageState extends State<WorkPage> {
                         onPeriod: _pickRange,
                         onOrg: _pickOrg,
                         onContractor: _pickContractor,
+                        onAuthor: _pickAuthor,
                         onAmount: _pickAmount,
                         onClearFilters: _clearApprovalFilters,
                         status: _statusShort,
                         period: _periodShort,
                         org: _orgShort,
                         contractor: _contractorShort,
+                        author: _authorShort,
                         amount: _amountShort,
                         showOrgFilter: _orgs.length > 1,
                         hasFilters: _hasAnyApprovalFilter,
@@ -1431,12 +1507,14 @@ class _DesktopWorkShell extends StatelessWidget {
     required this.onPeriod,
     required this.onOrg,
     required this.onContractor,
+    required this.onAuthor,
     required this.onAmount,
     required this.onClearFilters,
     required this.status,
     required this.period,
     required this.org,
     required this.contractor,
+    required this.author,
     required this.amount,
     required this.showOrgFilter,
     required this.hasFilters,
@@ -1472,12 +1550,14 @@ class _DesktopWorkShell extends StatelessWidget {
   final VoidCallback onPeriod;
   final VoidCallback onOrg;
   final VoidCallback onContractor;
+  final VoidCallback onAuthor;
   final VoidCallback onAmount;
   final VoidCallback onClearFilters;
   final String status;
   final String period;
   final String org;
   final String contractor;
+  final String author;
   final String amount;
   final bool showOrgFilter;
   final bool hasFilters;
@@ -1554,6 +1634,7 @@ class _DesktopWorkShell extends StatelessWidget {
             period: period,
             org: org,
             contractor: contractor,
+            author: author,
             amount: amount,
             showOrgFilter: showOrgFilter,
             hasFilters: hasFilters,
@@ -1561,6 +1642,7 @@ class _DesktopWorkShell extends StatelessWidget {
             onPeriod: onPeriod,
             onOrg: onOrg,
             onContractor: onContractor,
+            onAuthor: onAuthor,
             onAmount: onAmount,
             onClear: onClearFilters,
           ),
@@ -1931,6 +2013,7 @@ class _DesktopFilterBar extends StatelessWidget {
     required this.period,
     required this.org,
     required this.contractor,
+    required this.author,
     required this.amount,
     required this.showOrgFilter,
     required this.hasFilters,
@@ -1938,6 +2021,7 @@ class _DesktopFilterBar extends StatelessWidget {
     required this.onPeriod,
     required this.onOrg,
     required this.onContractor,
+    required this.onAuthor,
     required this.onAmount,
     required this.onClear,
   });
@@ -1946,6 +2030,7 @@ class _DesktopFilterBar extends StatelessWidget {
   final String period;
   final String org;
   final String contractor;
+  final String author;
   final String amount;
   final bool showOrgFilter;
   final bool hasFilters;
@@ -1953,6 +2038,7 @@ class _DesktopFilterBar extends StatelessWidget {
   final VoidCallback onPeriod;
   final VoidCallback onOrg;
   final VoidCallback onContractor;
+  final VoidCallback onAuthor;
   final VoidCallback onAmount;
   final VoidCallback onClear;
 
@@ -1978,6 +2064,15 @@ class _DesktopFilterBar extends StatelessWidget {
               label: 'Контрагент',
               value: contractor,
               onTap: onContractor,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _DesktopSearchChip(
+              icon: Icons.person_search_rounded,
+              label: 'Автор',
+              value: author,
+              onTap: onAuthor,
             ),
           ),
           const SizedBox(width: 8),

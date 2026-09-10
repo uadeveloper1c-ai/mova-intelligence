@@ -102,6 +102,14 @@ class ModulesPage extends StatelessWidget {
           onTap: () => context.push('/sales/customer-orders'),
         ),
         const SizedBox(height: 12),
+        _ModuleCard(
+          title: 'Посилання для партнерів',
+          subtitle: 'Персональні каталоги, токени та строки дії',
+          icon: Icons.link_rounded,
+          accent: const Color(0xFF8B5CF6),
+          onTap: () => context.push('/modules/public-order-links'),
+        ),
+        const SizedBox(height: 12),
         if (auth.canAccessProduction) ...[
           _ModuleCard(
             title: 'Виробництво',

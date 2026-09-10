@@ -14,6 +14,8 @@ class SalesReference {
     this.priceTypeName = '',
     this.warehouseUid = '',
     this.warehouseName = '',
+    this.organizationUid = '',
+    this.organizationName = '',
     this.stock,
     this.boxQuantity,
   });
@@ -28,6 +30,8 @@ class SalesReference {
   final String priceTypeName;
   final String warehouseUid;
   final String warehouseName;
+  final String organizationUid;
+  final String organizationName;
   final double? stock;
   final double? boxQuantity;
 
@@ -43,6 +47,8 @@ class SalesReference {
       priceTypeName: json['priceTypeName']?.toString() ?? '',
       warehouseUid: json['warehouseUid']?.toString() ?? '',
       warehouseName: json['warehouseName']?.toString() ?? '',
+      organizationUid: json['organizationUid']?.toString() ?? '',
+      organizationName: json['organizationName']?.toString() ?? '',
       stock: json.containsKey('stock') ? _asDouble(json['stock']) : null,
       boxQuantity: json.containsKey('boxQuantity')
           ? _asDouble(json['boxQuantity'])
@@ -87,6 +93,142 @@ class SalesDebtRow {
       debt: _asDouble(json['debt']),
       prepayment: _asDouble(json['prepayment']),
       balance: _asDouble(json['balance']),
+    );
+  }
+}
+
+class SalesItemAnalyticsRow {
+  const SalesItemAnalyticsRow({
+    required this.itemUid,
+    required this.itemName,
+    required this.unitName,
+    required this.quantity,
+    required this.previousQuantity,
+    required this.deltaQuantity,
+    required this.deltaPercent,
+    required this.amount,
+    required this.previousAmount,
+    required this.orders,
+    required this.previousOrders,
+  });
+
+  final String itemUid;
+  final String itemName;
+  final String unitName;
+  final double quantity;
+  final double previousQuantity;
+  final double deltaQuantity;
+  final double deltaPercent;
+  final double amount;
+  final double previousAmount;
+  final int orders;
+  final int previousOrders;
+
+  factory SalesItemAnalyticsRow.fromJson(Map<String, dynamic> json) {
+    return SalesItemAnalyticsRow(
+      itemUid: json['itemUid']?.toString() ?? '',
+      itemName: json['itemName']?.toString() ?? '',
+      unitName: json['unitName']?.toString() ?? '',
+      quantity: _asDouble(json['quantity']),
+      previousQuantity: _asDouble(json['previousQuantity']),
+      deltaQuantity: _asDouble(json['deltaQuantity']),
+      deltaPercent: _asDouble(json['deltaPercent']),
+      amount: _asDouble(json['amount']),
+      previousAmount: _asDouble(json['previousAmount']),
+      orders: int.tryParse(json['orders']?.toString() ?? '') ?? 0,
+      previousOrders:
+          int.tryParse(json['previousOrders']?.toString() ?? '') ?? 0,
+    );
+  }
+}
+
+class SalesTelegramParseResult {
+  const SalesTelegramParseResult({
+    required this.rows,
+    required this.unrecognized,
+    required this.recognizedCount,
+    required this.unrecognizedCount,
+    required this.canCreateOrder,
+    required this.sourceText,
+  });
+
+  final List<SalesTelegramParsedRow> rows;
+  final List<SalesTelegramParsedRow> unrecognized;
+  final int recognizedCount;
+  final int unrecognizedCount;
+  final bool canCreateOrder;
+  final String sourceText;
+
+  factory SalesTelegramParseResult.fromJson(Map<String, dynamic> json) {
+    List<SalesTelegramParsedRow> parseRows(dynamic value) {
+      if (value is! List) return const [];
+      return value
+          .map((item) => SalesTelegramParsedRow.fromJson(
+                Map<String, dynamic>.from(item as Map),
+              ))
+          .toList();
+    }
+
+    return SalesTelegramParseResult(
+      rows: parseRows(json['rows']),
+      unrecognized: parseRows(json['unrecognized']),
+      recognizedCount:
+          int.tryParse(json['recognizedCount']?.toString() ?? '') ?? 0,
+      unrecognizedCount:
+          int.tryParse(json['unrecognizedCount']?.toString() ?? '') ?? 0,
+      canCreateOrder: json['canCreateOrder'] == true,
+      sourceText: json['sourceText']?.toString() ?? '',
+    );
+  }
+}
+
+class SalesTelegramParsedRow {
+  const SalesTelegramParsedRow({
+    required this.sourceLine,
+    required this.alias,
+    required this.quantity,
+    required this.unitText,
+    required this.confidence,
+    required this.source,
+    required this.status,
+    required this.itemUid,
+    required this.itemName,
+    required this.learned,
+    required this.suggestions,
+  });
+
+  final String sourceLine;
+  final String alias;
+  final double quantity;
+  final String unitText;
+  final int confidence;
+  final String source;
+  final String status;
+  final String itemUid;
+  final String itemName;
+  final bool learned;
+  final List<SalesReference> suggestions;
+
+  factory SalesTelegramParsedRow.fromJson(Map<String, dynamic> json) {
+    final rawSuggestions = json['suggestions'];
+    return SalesTelegramParsedRow(
+      sourceLine: json['sourceLine']?.toString() ?? '',
+      alias: json['alias']?.toString() ?? '',
+      quantity: _asDouble(json['quantity']),
+      unitText: json['unitText']?.toString() ?? '',
+      confidence: int.tryParse(json['confidence']?.toString() ?? '') ?? 0,
+      source: json['source']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      itemUid: json['itemUid']?.toString() ?? '',
+      itemName: json['itemName']?.toString() ?? '',
+      learned: json['learned'] == true,
+      suggestions: rawSuggestions is List
+          ? rawSuggestions
+              .map((item) => SalesReference.fromJson(
+                    Map<String, dynamic>.from(item as Map),
+                  ))
+              .toList()
+          : const [],
     );
   }
 }
@@ -160,6 +302,7 @@ class SalesCustomerOrderLine {
     required this.characteristicName,
     required this.quantity,
     required this.unitName,
+    required this.supplyActionName,
     required this.priceTypeName,
     required this.price,
     required this.amount,
@@ -170,6 +313,7 @@ class SalesCustomerOrderLine {
   final String characteristicName;
   final double quantity;
   final String unitName;
+  final String supplyActionName;
   final String priceTypeName;
   final double price;
   final double amount;
@@ -181,6 +325,7 @@ class SalesCustomerOrderLine {
       characteristicName: json['characteristicName']?.toString() ?? '',
       quantity: _asDouble(json['quantity']),
       unitName: json['unitName']?.toString() ?? '',
+      supplyActionName: json['supplyActionName']?.toString() ?? '',
       priceTypeName: json['priceTypeName']?.toString() ?? '',
       price: _asDouble(json['price']),
       amount: _asDouble(json['amount']),
@@ -220,6 +365,7 @@ class CustomerOrderLineDraft {
     required this.price,
     required this.priceTypeUid,
     required this.manualPrice,
+    required this.supplyAction,
   });
 
   final String itemUid;
@@ -228,6 +374,7 @@ class CustomerOrderLineDraft {
   final double price;
   final String priceTypeUid;
   final bool manualPrice;
+  final String supplyAction;
 
   Map<String, dynamic> toJson() => {
         'itemUid': itemUid,
@@ -236,6 +383,7 @@ class CustomerOrderLineDraft {
         'price': price,
         'priceTypeUid': priceTypeUid,
         'manualPrice': manualPrice,
+        'supplyAction': supplyAction,
       };
 }
 
@@ -319,17 +467,69 @@ class SalesService {
         .toList();
   }
 
-  Future<List<SalesCustomerOrder>> getCustomerOrders({
+  Future<List<SalesItemAnalyticsRow>> getItemsAnalytics({
     required DateTime dateFrom,
     required DateTime dateTo,
     String partner = '',
     String orgUid = '',
+    int limit = 200,
   }) async {
     final params = Uri(queryParameters: {
       'dateFrom': _dateParam(dateFrom),
       'dateTo': _dateParam(dateTo),
       if (partner.trim().isNotEmpty) 'partner': partner.trim(),
       if (orgUid.trim().isNotEmpty) 'orgUid': orgUid.trim(),
+      'limit': limit.toString(),
+    }).query;
+    final data = await _getJson('GET', '/sales/items-analytics?$params');
+    if (data is! List) return const [];
+    return data
+        .map((item) => SalesItemAnalyticsRow.fromJson(
+              Map<String, dynamic>.from(item as Map),
+            ))
+        .toList();
+  }
+
+  Future<SalesTelegramParseResult> parseTelegramOrderText({
+    required String text,
+    String orgUid = '',
+  }) async {
+    final data = await _getJson(
+      'POST',
+      '/sales/telegram/parse-order-text',
+      body: {
+        'text': text,
+        if (orgUid.trim().isNotEmpty) 'orgUid': orgUid.trim(),
+      },
+    );
+    if (data is Map) {
+      return SalesTelegramParseResult.fromJson(
+        Map<String, dynamic>.from(data),
+      );
+    }
+    return const SalesTelegramParseResult(
+      rows: [],
+      unrecognized: [],
+      recognizedCount: 0,
+      unrecognizedCount: 0,
+      canCreateOrder: false,
+      sourceText: '',
+    );
+  }
+
+  Future<List<SalesCustomerOrder>> getCustomerOrders({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+    String partner = '',
+    String orgUid = '',
+    int? limit,
+  }) async {
+    final params = Uri(queryParameters: {
+      'dateFrom': _dateParam(dateFrom),
+      'dateTo': _dateParam(dateTo),
+      if (partner.trim().isNotEmpty) 'partner': partner.trim(),
+      if (orgUid.trim().isNotEmpty) 'orgUid': orgUid.trim(),
+      if (limit != null) 'limit': limit.toString(),
     }).query;
     final data = await _getJson('GET', '/sales/customer-orders?$params');
     if (data is! List) return const [];
@@ -375,6 +575,30 @@ class SalesService {
       return data['number']?.toString() ??
           data['order_number']?.toString() ??
           '';
+    }
+    return '';
+  }
+
+  Future<String> sendCustomerOrderToWms(String uid) async {
+    final data = await _getJson(
+      'POST',
+      '/sales/customer-orders/send-to-wms',
+      body: {'uid': uid},
+    );
+    if (data is Map) {
+      return data['message']?.toString() ?? '';
+    }
+    return '';
+  }
+
+  Future<String> updateCustomerOrderSupply(String uid) async {
+    final data = await _getJson(
+      'POST',
+      '/sales/customer-orders/update-supply',
+      body: {'uid': uid},
+    );
+    if (data is Map) {
+      return data['message']?.toString() ?? '';
     }
     return '';
   }

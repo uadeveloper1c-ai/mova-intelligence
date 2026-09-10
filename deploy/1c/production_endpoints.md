@@ -17,7 +17,12 @@ HTTP-сервиса.
 | `production_templates_archive` | `/production/templates/archive` | POST | `post_production_templates_archive` |
 | `production_rules` | `/production/rules` | GET | `get_production_rules` |
 | `production_requests_create` | `/production/requests/create` | POST | `post_production_requests_create` |
+| `production_requests_cancel` | `/production/requests/cancel` | POST | `post_production_requests_cancel` |
+| production_requests_update | /production/requests/update | POST | post_production_requests_update |
 | `production_requests_create_from_template` | `/production/requests/create-from-template` | POST | `post_production_requests_create_from_template` |
+| `production_bottling` | `/production/bottling` | GET | `get_production_bottling` |
+| `production_bottling_create` | `/production/bottling/create` | POST | `post_production_bottling_create` |
+| `production_bottling_packaging` | `/production/bottling/packaging` | GET | `get_production_bottling_packaging` |
 
 ## Проверка чтения
 
@@ -125,3 +130,25 @@ GET /hs/api/production/templates?orgCode=<код организации>
 - созданные заказы помечаются префиксом `[MOVA]` в комментарии;
 - ручной `POST /production/requests/create` пока возвращает HTTP 501;
 - дополнительные свойства `MOVA_*` в заказ ещё не записываются.
+
+## Отложенная отправка производственных заказов в WMS
+
+Новые `[MOVA]`-заказы на перемещение записываются и проводятся без немедленной
+выгрузки. В общий серверный модуль `МВ_ДоработкиСервер` добавить процедуры из
+`wms_delayed_dispatch_1C.txt`, затем создать регламентное задание:
+
+- обработчик: `МВ_ДоработкиСервер.ОтправитьОтложенныеЗаказыПеремещенияВWMS`;
+- расписание: каждые 1–5 минут;
+- повторный запуск одного задания запретить.
+
+Также создать подписку на событие ПередЗаписью документа
+ЗаказНаПеремещение с обработчиком
+МВ_ДоработкиСервер.ЗапретитьИзменениеПереданныхВWMSЗаказовПеремещения.
+Она блокирует изменение, перепроведение, распроведение и установку пометки удаления
+из формы 1С после появления WMS-статуса.
+
+Обработчик выбирает проведённые заказы с префиксом `[MOVA]`, которым не менее
+20 минут и у которых ещё нет записи статуса WMS. До появления статуса доступны
+редактирование и отмена. После любого непустого WMS-статуса оба действия
+блокируются сервером. Если WMS не подтвердила приём, статус остаётся пустым и
+заказ автоматически повторяется при следующем запуске.

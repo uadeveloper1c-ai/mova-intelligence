@@ -25,20 +25,34 @@ import '../../features/modules/presentation/modules_page.dart';
 import '../../features/messages/presentation/messages_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/profile/presentation/profile_page.dart';
+import '../../features/production/presentation/brew_passports_page.dart';
+import '../../features/production/presentation/brew_portion_page.dart';
+import '../../features/production/presentation/bottling_page.dart';
+import '../../features/production/presentation/cold_department_page.dart';
 import '../../features/production/production_service.dart';
 import '../../features/production/presentation/new_production_request_page.dart';
 import '../../features/production/presentation/production_page.dart';
+import '../../features/production/presentation/production_request_details_page.dart';
+import '../../features/production/presentation/production_template_details_page.dart';
 import '../../features/production/presentation/production_template_editor_page.dart';
 import '../../features/production/presentation/production_templates_page.dart';
+import '../../features/public_order/presentation/public_order_page.dart';
+import '../../features/public_order/presentation/public_order_links_admin_page.dart';
 import '../../features/sales/presentation/customer_order_details_page.dart';
 import '../../features/sales/presentation/customer_order_page.dart';
 import '../../features/sales/presentation/customer_orders_page.dart';
+import '../../features/secret/presentation/secret_mood_page.dart';
 
 GoRouter createRouter(AuthProvider auth) {
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: auth,
     redirect: (context, state) {
+      if (state.matchedLocation.startsWith('/public-order') ||
+          state.matchedLocation == '/secret') {
+        return null;
+      }
+
       final loggedIn = auth.isLoggedIn;
       final loggingIn = state.matchedLocation == '/login';
 
@@ -61,6 +75,18 @@ GoRouter createRouter(AuthProvider auth) {
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/public-order',
+        builder: (context, state) => PublicOrderPage(
+          token: state.uri.queryParameters['token'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/secret',
+        builder: (context, state) => SecretMoodPage(
+          recipient: state.uri.queryParameters['to'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/home',
@@ -120,6 +146,11 @@ GoRouter createRouter(AuthProvider auth) {
         builder: (context, state) => const AppScaffold(child: MessagesPage()),
       ),
       GoRoute(
+        path: '/modules/public-order-links',
+        builder: (context, state) =>
+            const AppScaffold(child: PublicOrderLinksAdminPage()),
+      ),
+      GoRoute(
         path: '/modules/notifications',
         builder: (context, state) =>
             const AppScaffold(child: NotificationsPage()),
@@ -176,6 +207,50 @@ GoRouter createRouter(AuthProvider auth) {
         builder: (context, state) => const AppScaffold(child: ProductionPage()),
       ),
       GoRoute(
+        path: '/production/bottling',
+        builder: (context, state) => const AppScaffold(child: BottlingPage()),
+      ),
+      GoRoute(
+        path: '/production/cold-department',
+        builder: (context, state) =>
+            const AppScaffold(child: ColdDepartmentPage()),
+      ),
+      GoRoute(
+        path: '/production/brew-passports',
+        builder: (context, state) =>
+            const AppScaffold(child: BrewPassportsPage()),
+      ),
+      GoRoute(
+        path: '/production/brew-passports/new',
+        builder: (context, state) =>
+            const AppScaffold(child: NewBrewPassportPage()),
+      ),
+      GoRoute(
+        path: '/production/brew-passports/:passportUid/portions/:portionUid',
+        builder: (context, state) => AppScaffold(
+          child: BrewPortionPage(
+            passportUid: state.pathParameters['passportUid'] ?? '',
+            portionUid: state.pathParameters['portionUid'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/production/brew-passports/:uid',
+        builder: (context, state) => AppScaffold(
+          child: BrewPassportDetailsPage(
+            uid: state.pathParameters['uid'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
+        path: '/production/requests/:uid',
+        builder: (context, state) => AppScaffold(
+          child: ProductionRequestDetailsPage(
+            uid: state.pathParameters['uid'] ?? '',
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/production/new',
         builder: (context, state) {
           final rawType = state.uri.queryParameters['type'] ?? '';
@@ -200,6 +275,14 @@ GoRouter createRouter(AuthProvider auth) {
         path: '/production/templates/new',
         builder: (context, state) =>
             const AppScaffold(child: ProductionTemplateEditorPage()),
+      ),
+      GoRoute(
+        path: '/production/templates/view/:uid',
+        builder: (context, state) => AppScaffold(
+          child: ProductionTemplateDetailsPage(
+            uid: state.pathParameters['uid'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/production/templates/:uid',

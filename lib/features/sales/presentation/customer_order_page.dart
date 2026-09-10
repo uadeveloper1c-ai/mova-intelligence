@@ -360,6 +360,7 @@ class _CustomerOrderPageState extends State<CustomerOrderPage> {
           price: price,
           priceTypeUid: line.priceType?.uid ?? '',
           manualPrice: line.manualPrice,
+          supplyAction: line.supplyAction,
         ),
       );
     }
@@ -775,7 +776,6 @@ class _MobileLineEditorLayout extends StatelessWidget {
             Expanded(child: total),
           ],
         ),
-        const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -1659,6 +1659,7 @@ class _OrderLineData {
   SalesReference? item;
   SalesReference? priceType;
   bool manualPrice = false;
+  String supplyAction = 'auto';
   final name = TextEditingController();
   final quantity = TextEditingController(text: '1');
   final price = TextEditingController();

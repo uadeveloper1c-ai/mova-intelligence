@@ -19,6 +19,8 @@ class CustomerOrderDetailsPage extends StatefulWidget {
 
 class _CustomerOrderDetailsPageState extends State<CustomerOrderDetailsPage> {
   late Future<SalesCustomerOrderDetails?> _future;
+  bool _wmsBusy = false;
+  bool _supplyBusy = false;
 
   @override
   void initState() {
@@ -30,6 +32,55 @@ class _CustomerOrderDetailsPageState extends State<CustomerOrderDetailsPage> {
     setState(() {
       _future = context.read<SalesService>().getCustomerOrderById(widget.uid);
     });
+  }
+
+  Future<void> _sendToWms() async {
+    setState(() => _wmsBusy = true);
+    try {
+      final message =
+          await context.read<SalesService>().sendCustomerOrderToWms(widget.uid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.trim().isEmpty ? 'Замовлення передано в WMS' : message,
+          ),
+        ),
+      );
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося передати в WMS: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _wmsBusy = false);
+    }
+  }
+
+  Future<void> _updateSupply() async {
+    setState(() => _supplyBusy = true);
+    try {
+      final message = await context
+          .read<SalesService>()
+          .updateCustomerOrderSupply(widget.uid);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.trim().isEmpty ? 'Забезпечення оновлено' : message,
+          ),
+        ),
+      );
+      _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не вдалося оновити забезпечення: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _supplyBusy = false);
+    }
   }
 
   String _fmtDate(DateTime? date) {
@@ -114,6 +165,58 @@ class _CustomerOrderDetailsPageState extends State<CustomerOrderDetailsPage> {
                     ],
                   ),
                 ),
+                if (details != null) ...[
+                  if (compact)
+                    IconButton.filledTonal(
+                      tooltip: 'Оновити забезпечення',
+                      onPressed: _supplyBusy ? null : _updateSupply,
+                      icon: _supplyBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.inventory_2_outlined),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: _supplyBusy ? null : _updateSupply,
+                      icon: _supplyBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.inventory_2_outlined),
+                      label: const Text('Оновити забезпечення'),
+                    ),
+                  const SizedBox(width: 8),
+                  if (compact)
+                    IconButton.filledTonal(
+                      tooltip: 'Вигрузити в WMS',
+                      onPressed: _wmsBusy ? null : _sendToWms,
+                      icon: _wmsBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.local_shipping_outlined),
+                    )
+                  else
+                    OutlinedButton.icon(
+                      onPressed: _wmsBusy ? null : _sendToWms,
+                      icon: _wmsBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.local_shipping_outlined),
+                      label: const Text('Вигрузити в WMS'),
+                    ),
+                  const SizedBox(width: 8),
+                ],
                 IconButton.filledTonal(
                   tooltip: 'Оновити',
                   onPressed: _reload,
@@ -887,6 +990,7 @@ class _MobileLineRow extends StatelessWidget {
             ],
           ),
           if (line.priceTypeName.trim().isNotEmpty ||
+              line.supplyActionName.trim().isNotEmpty ||
               line.characteristicName.trim().isNotEmpty) ...[
             const SizedBox(height: 7),
             Align(
@@ -895,6 +999,8 @@ class _MobileLineRow extends StatelessWidget {
                 [
                   if (line.priceTypeName.trim().isNotEmpty)
                     line.priceTypeName.trim(),
+                  if (line.supplyActionName.trim().isNotEmpty)
+                    line.supplyActionName.trim(),
                   if (line.characteristicName.trim().isNotEmpty)
                     line.characteristicName.trim(),
                 ].join(' / '),

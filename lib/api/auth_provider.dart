@@ -65,8 +65,7 @@ class AuthProvider extends ChangeNotifier {
   bool get canNotifyAll => _canNotifyAll;
   bool get canNotifyOwner => _canNotifyOwner;
   bool get seesAllPaymentRequests => _seesAllPaymentRequests;
-  bool get canAccessProduction {
-    if (_canAccessProduction) return true;
+  bool get isAdmin {
     final roles = currentUser?.roles ?? const <String>[];
     return roles.any((role) {
       final normalized = role.trim().toLowerCase();
@@ -74,6 +73,11 @@ class AuthProvider extends ChangeNotifier {
           normalized == 'админ' ||
           normalized == 'адмін';
     });
+  }
+
+  bool get canAccessProduction {
+    if (_canAccessProduction) return true;
+    return isAdmin;
   }
 
   String? get defaultSubdivisionUid => _defaultSubdivisionUid;

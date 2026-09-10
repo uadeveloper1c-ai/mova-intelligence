@@ -64,7 +64,7 @@ class AppScaffold extends StatelessWidget {
     if (loc.startsWith('/work') || loc.startsWith('/approvals')) selected = 1;
     if (loc.startsWith('/modules')) selected = 2;
 
-    final title = _tabs[selected].$3;
+    final title = _sectionTitle(loc, selected);
     final isDesktop = MediaQuery.sizeOf(context).width >= 1000;
 
     Future<void> logout() async {
@@ -214,6 +214,12 @@ class AppScaffold extends StatelessWidget {
             ),
     );
   }
+
+  static String _sectionTitle(String location, int selectedIndex) {
+    if (location.startsWith('/sales')) return 'Продажі';
+    if (location.startsWith('/production')) return 'Виробництво';
+    return _tabs[selectedIndex].$3;
+  }
 }
 
 class _DesktopSidebar extends StatelessWidget {
@@ -356,6 +362,18 @@ class _DesktopSidebar extends StatelessWidget {
                     border: border,
                     onTap: () => context.go(item.$1),
                   ),
+                _DesktopNavTile(
+                  path: '/sales/customer-orders',
+                  icon: Icons.storefront_outlined,
+                  title: 'Продажі',
+                  subtitle: 'Замовлення клієнтів',
+                  selected: _isSelected('/sales'),
+                  text: text,
+                  sub: sub,
+                  accent: accent,
+                  border: border,
+                  onTap: () => context.go('/sales/customer-orders'),
+                ),
                 if (canAccessProduction)
                   _DesktopNavTile(
                     path: '/production',

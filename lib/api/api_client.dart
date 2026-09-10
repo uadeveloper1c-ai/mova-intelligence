@@ -181,6 +181,29 @@ class ApiClient {
     return await makeRequest();
   }
 
+  Future<http.Response> sendPublicRequest(
+    String method,
+    String endpoint, {
+    Map<String, String>? headers,
+    Object? body,
+  }) async {
+    final url = Uri.parse("$baseUrl$endpoint");
+    final hdr = <String, String>{
+      if (headers == null || !headers.containsKey("Content-Type"))
+        "Content-Type": "application/json",
+      if (headers != null) ...headers,
+    };
+
+    switch (method.toUpperCase()) {
+      case "GET":
+        return _httpClient.get(url, headers: hdr);
+      case "POST":
+        return _httpClient.post(url, headers: hdr, body: body);
+      default:
+        throw Exception("Unknown public HTTP method: $method");
+    }
+  }
+
   /// RAW (multipart/stream) с Bearer и авто-refresh
   ///
   /// Важно: BaseRequest нельзя переиспользовать. Поэтому сюда передаём builder,

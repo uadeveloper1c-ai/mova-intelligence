@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -24,8 +25,10 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
   DateTimeRange? _range;
   PaymentRequestStatus? _statusFilter;
   String _contractorQuery = '';
+  String _authorQuery = '';
   String? _orgCodeFilter;
   List<OrgAccess> _orgs = const [];
+  List<String> _authors = const [];
 
   late Future<List<PaymentRequest>> _future;
 
@@ -91,7 +94,8 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
       _range != null ||
       _statusFilter != null ||
       (_orgCodeFilter?.trim().isNotEmpty ?? false) ||
-      _contractorQuery.trim().isNotEmpty;
+      _contractorQuery.trim().isNotEmpty ||
+      _authorQuery.trim().isNotEmpty;
 
   bool get _isIncomingTab => _tab == _ApprovalsTab.incoming;
 
@@ -116,6 +120,9 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
 
   String get _contractorShort =>
       _contractorQuery.trim().isEmpty ? 'Усі' : _contractorQuery.trim();
+
+  String get _authorShort =>
+      _authorQuery.trim().isEmpty ? 'Усі' : _authorQuery.trim();
 
   String get _orgShort {
     final code = _orgCodeFilter?.trim() ?? '';
@@ -308,7 +315,24 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
       final fresh = await future;
       if (!mounted) return;
       final freshIds = fresh.map((e) => e.id).toSet();
-      setState(() => _hiddenIds.removeWhere((id) => freshIds.contains(id)));
+      final authorsByKey = <String, String>{};
+      for (final request in fresh) {
+        final author = request.requesterName?.trim() ?? '';
+        if (author.isNotEmpty) {
+          authorsByKey.putIfAbsent(author.toLowerCase(), () => author);
+        }
+      }
+      final authors = authorsByKey.values.toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+      setState(() {
+        _hiddenIds.removeWhere((id) => freshIds.contains(id));
+        _authors = authors;
+        if (_authorQuery.isNotEmpty &&
+            !_authors.any((name) => name == _authorQuery)) {
+          _authorQuery = '';
+        }
+      });
     } catch (_) {}
   }
 
@@ -368,6 +392,7 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
       _statusFilter = null;
       _orgCodeFilter = null;
       _contractorQuery = '';
+      _authorQuery = '';
       _contractorCtrl.text = '';
     });
     _reload();
@@ -503,6 +528,54 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
     setState(() => _contractorQuery = picked.trim());
   }
 
+  Future<void> _pickAuthor() async {
+    if (_authors.isEmpty) return;
+
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: panel,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text(
+            'Автор заявки',
+            style: TextStyle(color: text, fontWeight: FontWeight.w800),
+          ),
+          content: SizedBox(
+            width: 420,
+            height: MediaQuery.sizeOf(ctx).height * 0.6,
+            child: ListView(
+              children: [
+                _StatusPickTile(
+                  label: 'Усі',
+                  color: muted,
+                  selected: _authorQuery.isEmpty,
+                  onTap: () => Navigator.of(ctx).pop('__ALL__'),
+                ),
+                const SizedBox(height: 6),
+                ..._authors.map(
+                  (author) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: _StatusPickTile(
+                      label: author,
+                      color: accent,
+                      selected: _authorQuery == author,
+                      onTap: () => Navigator.of(ctx).pop(author),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (picked == null) return;
+    setState(() => _authorQuery = picked == '__ALL__' ? '' : picked);
+  }
+
   Future<void> _pickOrg() async {
     if (_orgs.isEmpty) return;
 
@@ -583,6 +656,14 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
     if (q.isNotEmpty) {
       items = items
           .where((r) => r.contractorName.toLowerCase().contains(q))
+          .toList();
+    }
+
+    final authorQuery = _authorQuery.trim().toLowerCase();
+    if (authorQuery.isNotEmpty) {
+      items = items
+          .where((r) =>
+              (r.requesterName ?? '').trim().toLowerCase() == authorQuery)
           .toList();
     }
 
@@ -798,7 +879,7 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
                                     onTap: _pickOrg,
                                   ),
                                 ),
-                              ] else ...[
+                              ] else if (!kIsWeb) ...[
                                 const SizedBox(width: 8),
                                 _IconPill(
                                   icon: _hasAnyFilter
@@ -810,11 +891,35 @@ class _PaymentRequestsListPageState extends State<PaymentRequestsListPage> {
                               ],
                             ],
                           ),
-                          if (_orgs.length > 1) ...[
+                          if (_orgs.length > 1 && !kIsWeb) ...[
                             const SizedBox(height: 8),
                             Row(
                               children: [
                                 const Spacer(),
+                                _IconPill(
+                                  icon: _hasAnyFilter
+                                      ? Icons.filter_alt_off_rounded
+                                      : Icons.filter_alt_rounded,
+                                  accent: _hasAnyFilter ? accent : null,
+                                  onTap: _hasAnyFilter ? _clearFilters : null,
+                                ),
+                              ],
+                            ),
+                          ],
+                          if (kIsWeb) ...[
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _FilterPill2L(
+                                    icon: Icons.person_search_rounded,
+                                    title: 'Автор заявки',
+                                    value: _authorShort,
+                                    tooltip: 'Автор заявки: $_authorShort',
+                                    onTap: _pickAuthor,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
                                 _IconPill(
                                   icon: _hasAnyFilter
                                       ? Icons.filter_alt_off_rounded

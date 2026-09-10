@@ -16,6 +16,7 @@ class ProductionTemplatesPage extends StatefulWidget {
 class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
   late Future<List<ProductionTemplate>> _future;
   List<SubdivisionAccess> _subdivisions = const [];
+  String? _defaultSubdivisionUid;
 
   @override
   void initState() {
@@ -27,7 +28,10 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
   Future<void> _loadSession() async {
     final session = await SessionStore.loadSession();
     if (mounted) {
-      setState(() => _subdivisions = session?.subdivisions ?? const []);
+      setState(() {
+        _subdivisions = session?.subdivisions ?? const [];
+        _defaultSubdivisionUid = session?.defaultSubdivisionUid;
+      });
     }
   }
 
@@ -42,6 +46,11 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
         ? '/production/templates/new'
         : '/production/templates/${template.uid}';
     await context.push(path);
+    if (mounted) await _refresh();
+  }
+
+  Future<void> _openDetails(ProductionTemplate template) async {
+    await context.push('/production/templates/view/${template.uid}');
     if (mounted) await _refresh();
   }
 
@@ -106,6 +115,16 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
     }
   }
 
+  String? _defaultTemplateSubdivisionUid() {
+    final defaultUid = _defaultSubdivisionUid?.trim() ?? '';
+    if (defaultUid.isNotEmpty &&
+        _subdivisions.any((item) => item.uid == defaultUid)) {
+      return defaultUid;
+    }
+    if (_subdivisions.length == 1) return _subdivisions.first.uid;
+    return null;
+  }
+
   Future<void> _createOrders(ProductionTemplate template) async {
     final volume = TextEditingController(
       text: template.baseVolume.toStringAsFixed(
@@ -114,7 +133,7 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
     );
     final comment = TextEditingController();
     var date = DateTime.now();
-    String? subdivisionUid;
+    String? subdivisionUid = _defaultTemplateSubdivisionUid();
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
@@ -235,7 +254,7 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
     return RefreshIndicator(
       onRefresh: _refresh,
       child: ListView(
-        padding: EdgeInsets.all(desktop ? 28 : 16),
+        padding: EdgeInsets.all(desktop ? 20 : 12),
         children: [
           Row(
             children: [
@@ -270,7 +289,7 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
               ),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
           FutureBuilder<List<ProductionTemplate>>(
             future: _future,
             builder: (context, snapshot) {
@@ -297,33 +316,12 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
                   action: _openEditor,
                 );
               }
-              return LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 1250
-                      ? 3
-                      : constraints.maxWidth >= 760
-                          ? 2
-                          : 1;
-                  final width =
-                      (constraints.maxWidth - (columns - 1) * 12) / columns;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      for (final template in templates)
-                        SizedBox(
-                          width: width,
-                          child: _TemplateCard(
-                            template: template,
-                            onOpen: () => _openEditor(template),
-                            onCopy: () => _copy(template),
-                            onArchive: () => _archive(template),
-                            onCreateOrders: () => _createOrders(template),
-                          ),
-                        ),
-                    ],
-                  );
-                },
+              return _TemplatesTable(
+                templates: templates,
+                onOpen: _openDetails,
+                onCopy: _copy,
+                onArchive: _archive,
+                onCreateOrders: _createOrders,
               );
             },
           ),
@@ -333,94 +331,87 @@ class _ProductionTemplatesPageState extends State<ProductionTemplatesPage> {
   }
 }
 
-class _TemplateCard extends StatelessWidget {
-  const _TemplateCard({
-    required this.template,
+class _TemplatesTable extends StatelessWidget {
+  const _TemplatesTable({
+    required this.templates,
     required this.onOpen,
     required this.onCopy,
     required this.onArchive,
     required this.onCreateOrders,
   });
 
-  final ProductionTemplate template;
-  final VoidCallback onOpen;
-  final VoidCallback onCopy;
-  final VoidCallback onArchive;
-  final VoidCallback onCreateOrders;
+  final List<ProductionTemplate> templates;
+  final ValueChanged<ProductionTemplate> onOpen;
+  final ValueChanged<ProductionTemplate> onCopy;
+  final ValueChanged<ProductionTemplate> onArchive;
+  final ValueChanged<ProductionTemplate> onCreateOrders;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(Icons.receipt_long_outlined, color: cs.primary),
-              const SizedBox(width: 9),
-              Expanded(
-                child: Text(
-                  template.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              PopupMenuButton<String>(
-                tooltip: 'Дії',
-                onSelected: (value) {
-                  if (value == 'copy') onCopy();
-                  if (value == 'archive') onArchive();
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'copy', child: Text('Копіювати')),
-                  PopupMenuItem(value: 'archive', child: Text('Архівувати')),
+      decoration: BoxDecoration(border: Border.all(color: cs.outlineVariant)),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          showCheckboxColumn: false,
+          headingRowHeight: 36,
+          dataRowMinHeight: 46,
+          dataRowMaxHeight: 52,
+          horizontalMargin: 12,
+          columnSpacing: 22,
+          border: TableBorder.all(color: cs.outlineVariant),
+          columns: const [
+            DataColumn(label: Text('Шаблон')),
+            DataColumn(label: Text('Організація')),
+            DataColumn(label: Text('Тип')),
+            DataColumn(label: Text('Напій')),
+            DataColumn(label: Text('Базовий обсяг'), numeric: true),
+            DataColumn(label: Text('Позицій'), numeric: true),
+            DataColumn(label: Text('Команди')),
+          ],
+          rows: [
+            for (final template in templates)
+              DataRow(
+                onSelectChanged: (_) => onOpen(template),
+                cells: [
+                  DataCell(SizedBox(
+                    width: 280,
+                    child: Text(template.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w800)),
+                  )),
+                  DataCell(SizedBox(
+                      width: 180, child: Text(template.organizationName))),
+                  DataCell(Text(template.templateType)),
+                  DataCell(Text(template.drinkType)),
+                  DataCell(Text('${template.baseVolume}')),
+                  DataCell(Text('${template.lines.length}')),
+                  DataCell(Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        tooltip: 'Створити переміщення',
+                        onPressed: () => onCreateOrders(template),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                      ),
+                      IconButton(
+                        tooltip: 'Копіювати',
+                        onPressed: () => onCopy(template),
+                        icon: const Icon(Icons.copy_outlined, size: 18),
+                      ),
+                      IconButton(
+                        tooltip: 'Архівувати',
+                        onPressed: () => onArchive(template),
+                        icon: const Icon(Icons.archive_outlined, size: 18),
+                      ),
+                    ],
+                  )),
                 ],
               ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            '${template.organizationName} · ${template.templateType} · ${template.drinkType}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: cs.onSurface.withValues(alpha: .62)),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Базовий обсяг: ${template.baseVolume} · Позицій: ${template.lines.length}',
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onOpen,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Редагувати'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onCreateOrders,
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Створити переміщення'),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -149,13 +149,11 @@ class _EventsPageState extends State<EventsPage> {
       return;
     }
 
-    // заказ (пока заглушка)
+    // заказ клиента
     final orderUid = payload['order_uid']?.toString();
     if (orderUid != null && orderUid.isNotEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Замовлення $orderUid (екран ще в роботі)')),
-      );
+      context.push('/sales/customer-orders/$orderUid');
       return;
     }
 

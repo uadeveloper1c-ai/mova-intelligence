@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -180,11 +182,13 @@ class _ProductionTemplateEditorPageState
     }
   }
 
-  Future<ProductionReference?> _pickCatalogItem() async {
+  Future<ProductionReference?> _pickCatalogItem({String? group}) async {
     final search = TextEditingController();
     var results = _catalog.take(30).toList();
     var loading = false;
     String? error;
+    Timer? searchDebounce;
+    var initialSearchStarted = false;
 
     final selected = await showDialog<ProductionReference>(
       context: context,
@@ -196,15 +200,35 @@ class _ProductionTemplateEditorPageState
               error = null;
             });
             try {
-              final found = await context
-                  .read<ProductionService>()
-                  .searchCatalog(search.text.trim());
+              final found =
+                  await context.read<ProductionService>().searchCatalog(
+                        search.text.trim(),
+                        orgCode: _organizationCode,
+                        templateType: _templateType,
+                        group: group,
+                      );
               setDialogState(() => results = found);
             } catch (e) {
               setDialogState(() => error = '$e');
             } finally {
               setDialogState(() => loading = false);
             }
+          }
+
+          void scheduleSearch(String value) {
+            searchDebounce?.cancel();
+            searchDebounce = Timer(const Duration(milliseconds: 320), () {
+              if (!dialogContext.mounted) return;
+              runSearch();
+            });
+          }
+
+          if (!initialSearchStarted) {
+            initialSearchStarted = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!dialogContext.mounted) return;
+              runSearch();
+            });
           }
 
           return AlertDialog(
@@ -227,6 +251,7 @@ class _ProductionTemplateEditorPageState
                       ),
                     ),
                     textInputAction: TextInputAction.search,
+                    onChanged: scheduleSearch,
                     onSubmitted: (_) => runSearch(),
                   ),
                   const SizedBox(height: 12),
@@ -241,21 +266,86 @@ class _ProductionTemplateEditorPageState
                         ),
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 20, 4),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Номенклатура',
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 112,
+                          child: Text(
+                            'Залишок',
+                            textAlign: TextAlign.right,
+                            style: Theme.of(context)
+                                .textTheme
+                                .labelMedium
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                   Expanded(
                     child: results.isEmpty && !loading
                         ? const Center(child: Text('Нічого не знайдено'))
                         : ListView.separated(
-                            padding: const EdgeInsets.only(top: 8),
+                            padding: EdgeInsets.zero,
                             itemCount: results.length,
                             separatorBuilder: (_, __) =>
                                 const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final item = results[index];
+                              final stock = item.stock;
+                              final stockColor = stock == null
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant
+                                  : stock <= 0
+                                      ? Theme.of(context).colorScheme.error
+                                      : Theme.of(context).colorScheme.primary;
                               return ListTile(
                                 leading: const Icon(Icons.inventory_2_outlined),
                                 title: Text(item.name),
                                 subtitle:
                                     item.code.isEmpty ? null : Text(item.code),
+                                trailing: SizedBox(
+                                  width: 112,
+                                  child: Text(
+                                    stock == null
+                                        ? '—'
+                                        : [
+                                            _formatQuantity(stock),
+                                            item.stockUnit,
+                                          ]
+                                            .where((part) => part.isNotEmpty)
+                                            .join(' '),
+                                    textAlign: TextAlign.right,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: stockColor,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
                                 onTap: () =>
                                     Navigator.of(dialogContext).pop(item),
                               );
@@ -275,11 +365,20 @@ class _ProductionTemplateEditorPageState
         },
       ),
     );
+    searchDebounce?.cancel();
     search.dispose();
     if (selected != null && !_catalog.any((item) => item.uid == selected.uid)) {
       setState(() => _catalog = [..._catalog, selected]);
     }
     return selected;
+  }
+
+  String _formatQuantity(double value) {
+    if (value == value.roundToDouble()) return value.toInt().toString();
+    return value
+        .toStringAsFixed(3)
+        .replaceFirst(RegExp(r'0+$'), '')
+        .replaceFirst(RegExp(r'\.$'), '');
   }
 
   @override
@@ -333,6 +432,9 @@ class _ProductionTemplateEditorPageState
               _Section(
                 title: 'Основне',
                 child: _ResponsiveFields(
+                  minItemWidth: 270,
+                  spacing: 10,
+                  runSpacing: 10,
                   children: [
                     TextFormField(
                       controller: _name,
@@ -427,7 +529,9 @@ class _ProductionTemplateEditorPageState
               _Section(
                 title: 'Склад',
                 trailing: OutlinedButton.icon(
-                  onPressed: () => setState(() => _lines.add(_LineData())),
+                  onPressed: () => setState(
+                    () => _lines.insert(0, _LineData()),
+                  ),
                   icon: const Icon(Icons.add_rounded),
                   label: const Text('Додати позицію'),
                 ),
@@ -445,7 +549,8 @@ class _ProductionTemplateEditorPageState
                         },
                         onChanged: () => setState(() {}),
                         onPickItem: () async {
-                          final selected = await _pickCatalogItem();
+                          final selected = await _pickCatalogItem(
+                              group: _lines[index].group);
                           if (selected != null) {
                             setState(
                                 () => _lines[index].itemUid = selected.uid);
@@ -486,6 +591,75 @@ class _LineEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final groupField = DropdownButtonFormField<String>(
+      initialValue: line.group.isEmpty ? null : line.group,
+      decoration: const InputDecoration(labelText: 'Група замовлення'),
+      items: const [
+        DropdownMenuItem(value: 'Зерно', child: Text('Зерно')),
+        DropdownMenuItem(
+          value: 'ХмельИДрожжи',
+          child: Text('Хміль і дріжджі'),
+        ),
+        DropdownMenuItem(
+          value: 'Компоненты',
+          child: Text('Компоненти'),
+        ),
+        DropdownMenuItem(value: 'Тара', child: Text('Тара')),
+      ],
+      onChanged: (value) {
+        line.group = value ?? '';
+        onChanged();
+      },
+    );
+    final itemField = _CatalogPickerField(
+      label: 'Номенклатура',
+      value: catalog.where((item) => item.uid == line.itemUid).firstOrNull,
+      onTap: onPickItem,
+    );
+    final quantityField = TextFormField(
+      controller: line.quantity,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      decoration: const InputDecoration(labelText: 'Кількість'),
+    );
+    final commentField = TextFormField(
+      controller: line.comment,
+      decoration: const InputDecoration(labelText: 'Коментар'),
+    );
+    final requiredField = InkWell(
+      onTap: () {
+        line.required = !line.required;
+        onChanged();
+      },
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(
+        height: 56,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Checkbox(
+              value: line.required,
+              onChanged: (value) {
+                line.required = value ?? true;
+                onChanged();
+              },
+            ),
+            const Flexible(
+              child: Text(
+                'Обов’язково',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    final removeButton = IconButton(
+      tooltip: 'Видалити позицію',
+      onPressed: canRemove ? onRemove : null,
+      icon: const Icon(Icons.delete_outline_rounded),
+    );
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -493,61 +667,36 @@ class _LineEditor extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: cs.outlineVariant),
       ),
-      child: _ResponsiveFields(
-        children: [
-          DropdownButtonFormField<String>(
-            initialValue: line.group,
-            decoration: const InputDecoration(labelText: 'Група замовлення'),
-            items: const [
-              DropdownMenuItem(value: 'Зерно', child: Text('Зерно')),
-              DropdownMenuItem(
-                value: 'ХмельИДрожжи',
-                child: Text('Хміль і дріжджі'),
-              ),
-              DropdownMenuItem(
-                value: 'Компоненты',
-                child: Text('Компоненти'),
-              ),
-              DropdownMenuItem(value: 'Тара', child: Text('Тара')),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 720) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(width: 190, child: groupField),
+                const SizedBox(width: 10),
+                Expanded(flex: 5, child: itemField),
+                const SizedBox(width: 10),
+                SizedBox(width: 96, child: quantityField),
+                const SizedBox(width: 10),
+                Expanded(flex: 3, child: commentField),
+                const SizedBox(width: 10),
+                SizedBox(width: 120, child: requiredField),
+                removeButton,
+              ],
+            );
+          }
+          return _ResponsiveFields(
+            children: [
+              groupField,
+              itemField,
+              quantityField,
+              commentField,
+              requiredField,
+              Align(alignment: Alignment.centerRight, child: removeButton),
             ],
-            onChanged: (value) {
-              line.group = value!;
-              onChanged();
-            },
-          ),
-          _CatalogPickerField(
-            label: 'Номенклатура',
-            value:
-                catalog.where((item) => item.uid == line.itemUid).firstOrNull,
-            onTap: onPickItem,
-          ),
-          TextFormField(
-            controller: line.quantity,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Кількість'),
-          ),
-          TextFormField(
-            controller: line.comment,
-            decoration: const InputDecoration(labelText: 'Коментар'),
-          ),
-          CheckboxListTile(
-            value: line.required,
-            onChanged: (value) {
-              line.required = value ?? true;
-              onChanged();
-            },
-            title: const Text('Обов’язково'),
-            contentPadding: EdgeInsets.zero,
-          ),
-          Align(
-            alignment: Alignment.centerRight,
-            child: IconButton(
-              tooltip: 'Видалити позицію',
-              onPressed: canRemove ? onRemove : null,
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -630,21 +779,30 @@ class _Section extends StatelessWidget {
 }
 
 class _ResponsiveFields extends StatelessWidget {
-  const _ResponsiveFields({required this.children});
+  const _ResponsiveFields({
+    required this.children,
+    this.minItemWidth = 390,
+    this.spacing = 12,
+    this.runSpacing = 12,
+  });
 
   final List<Widget> children;
+  final double minItemWidth;
+  final double spacing;
+  final double runSpacing;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 800 ? 2 : 1;
-        final width = columns == 2
-            ? (constraints.maxWidth - 12) / 2
-            : constraints.maxWidth;
+        final columns =
+            (constraints.maxWidth / minItemWidth).floor().clamp(1, 4).toInt();
+        final width = columns == 1
+            ? constraints.maxWidth
+            : (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(
-          spacing: 12,
-          runSpacing: 12,
+          spacing: spacing,
+          runSpacing: runSpacing,
           children: [
             for (final child in children) SizedBox(width: width, child: child),
           ],

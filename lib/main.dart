@@ -19,6 +19,7 @@ import 'features/approvals/approvals_service.dart';
 import 'features/events/events_service.dart';
 import 'features/notifications/notifications_service.dart';
 import 'features/production/production_service.dart';
+import 'features/public_order/public_order_link_admin_service.dart';
 import 'features/sales/sales_service.dart';
 
 void main() async {
@@ -76,6 +77,9 @@ void main() async {
         Provider<ProductionService>(
             create: (_) => ProductionService(apiClient)),
         Provider<SalesService>(create: (_) => SalesService(apiClient)),
+        Provider<PublicOrderLinkAdminService>(
+          create: (_) => PublicOrderLinkAdminService(apiClient),
+        ),
       ],
       child: MyApp(router: router),
     ),
